@@ -1,0 +1,16 @@
+langgraph
+langsmith
+langchain
+langchain-anthropic
+langchain-google-genai
+notebook
+numpy
+pandas
+matplotlib
+dask
+jupyter
+jupyterlab
+python-dotenv
+mypy
+ruff
+pytest
