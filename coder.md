@@ -91,6 +91,14 @@ description: Use when implementing the tasks specified in `kgs/tasks/componentna
 	<constraint>You MUST use the write_file tool to write every output file. 
 	Do not describe file contents in your response text. 
 	Call write_file for each file that needs to be created or modified.</constraint>
+	<constraint>Use the run_git tool only when a human response explicitly 
+	requests a git commit or code review checkpoint. Do not run git commands 
+	autonomously during normal task implementation. When a human response 
+	contains the phrase "commit" or "version this", run:
+	1. run_git("init") — only if kgs/.git does not exist
+	2. run_git("add {{specific changed files}}") — never git add .
+	3. run_git("commit -m '{{descriptive message}}'")
+	</constraint>
 </constraints>
 
 

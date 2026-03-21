@@ -5,16 +5,16 @@ from pathlib import Path
 import mypy.api
 from langchain_anthropic import ChatAnthropic
 from langgraph.graph import StateGraph, START, END
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, NotRequired
 from typing import Literal
 from langgraph.graph import MessagesState
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage, trim_messages
 from langchain.tools import tool, ToolRuntime
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command, interrupt
 from langchain.agents import create_agent
 from anthropic import RateLimitError, APIStatusError
-from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRetryMiddleware
+from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRetryMiddleware, ModelRequest, ModelResponse, wrap_model_call, ContextEditingMiddleware, ClearToolUsesEdit
 import shutil
 
 
@@ -25,7 +25,8 @@ class EvalResponse(TypedDict):
 
 class State(MessagesState):
     eval_status: int
-    entry_point: Literal["planner", "coder", "evaluator"]
+    entry_point: NotRequired[Literal["planner", "coder", "evaluator"]]
+    coder_level: NotRequired[Literal["basic", "advanced"]]
 
 # tools definitions
 # file read and write tools
@@ -42,6 +43,8 @@ def read_file(filepath: str) -> str:
     p = Path(filepath)
     if not p.exists():
         return f"ERROR: {filepath} does not exist. Check TaskIndex.md for the correct filename."
+    if p.is_dir():
+        return f"ERROR: {filepath} is a directory, not a file. Specify a file path."
     
     if p.stat().st_size > 1_000_000:
         return (
@@ -54,7 +57,13 @@ def read_file(filepath: str) -> str:
 @tool
 def read_file_head(filepath: str, n_lines: int = 10) -> str:
     """Read the first n lines of a file. Use for previewing large data files."""
-    lines = Path(filepath).read_text().splitlines()
+    p = Path(filepath)
+    if not p.exists():
+        return f"ERROR: file {filepath} does not exist"
+    if p.is_dir():
+        return f"ERROR: {filepath} is a directory not a file"
+
+    lines = p.read_text().splitlines()
     return "\n".join(lines[:n_lines])
 
 # utility functions
@@ -116,15 +125,16 @@ def check_for_blocker(repo_root: str) -> EvalResponse:
         )
     return EvalResponse(errors="", status=0)
 
-def check_eval_status(state) -> Literal["coder","human_checkpoint", "__end__"]:
+def check_eval_status(state) -> Literal["coder_entry","human_checkpoint", "__end__"]:
     if state["eval_status"] == 2:      # BLOCKER found
         return "human_checkpoint"
     if state["eval_status"] == 1:      # eval failures
-        return "coder"
+        return "coder_entry"
     return END
 
 
 # factory functions for building nodes
+
 
 def make_eval_node(repo_root: str):
     def evaluate(state):
@@ -140,7 +150,7 @@ def make_eval_node(repo_root: str):
             Human intervention needed to fix the errors and unblock the coder- 
             errors - {blocker_chk_response['errors']}""")
             eval_status = 2
-            return {"messages": [msg], "eval_status": eval_status}
+            return {"messages": [msg], "eval_status": eval_status, "coder_level": "basic"}
         
         # Gate 1 — quality checks & tests
         linting_response = linting(repo_root)
@@ -161,7 +171,7 @@ def make_eval_node(repo_root: str):
                 ))
                 eval_status = 1
         
-        return {"messages": response, "eval_status": eval_status}
+        return {"messages": response, "eval_status": eval_status, "coder_level": "basic"}
     return evaluate
 
 def human_checkpoint(state):
@@ -181,6 +191,27 @@ def human_checkpoint(state):
     human_response = interrupt(display_msg)
 
     return {"messages": [HumanMessage(content=human_response)]}
+
+def coder_entry(state: State) -> State:
+    """ Function for coder_entry node
+        This node trims all messages except 
+        1. the last human message - if last message is human msg
+        2. OR the last pair of messages (AI message + tool message) - if last message is tool msg
+        This node preceeds the coder node in the graph and acts as a gateway to the coder
+    """
+    messages = state["messages"]
+    coder_level = state.get("coder_level","basic")
+    reverse_msgs_iter = reversed(messages)
+    last_msg = next( 
+        msg for msg in reverse_msgs_iter
+        if isinstance(msg, (HumanMessage, ToolMessage)))
+    if isinstance(last_msg, ToolMessage):
+        pair_msg = next(
+            msg for msg in reverse_msgs_iter
+            if isinstance(msg, AIMessage)
+            )
+        return {"messages": [pair_msg, last_msg], "coder_level":coder_level}
+    return {"messages": [last_msg], "coder_level":coder_level}
 
 @tool
 def handoff_to_coder(runtime: ToolRuntime) -> Command:
@@ -206,10 +237,42 @@ def handoff_to_coder(runtime: ToolRuntime) -> Command:
                 ToolMessage(content="""
                 Planner has finished writing TaskIndex.md and all component task files at tasks/*.md
                 """, tool_call_id = runtime.tool_call_id)
-            ]
+            ], "eval_status": 0, "coder_level": "advanced"
         },
         graph = Command.PARENT
     )
+
+@tool
+def run_git(command: str) -> str:
+    """
+    Executes git-cli commands to 
+    1. `git init` - to initiate the repo once in the beginning
+    2. `git add <specific changed files>` - to add files that have changed
+    3. `git commit -m "<comment>"` - commits changes with a short but meaningful comment describing the changes
+
+    Do not run `git pull`, `git push`, `git rm` and other destructive commands.
+    Do not run `git add .`
+
+    Params:
+    command : str  - the command like `git commit -m "fixed datetime error"`
+
+    Returns:
+    Error message if command is not allowed or if git command fails
+    Output of git command if it succeeds
+    """
+    allowed_cmds = ["init","add","commit","status","diff"]
+    cmd_parts = command.strip().split()
+    if not cmd_parts or cmd_parts[0] not in allowed_cmds:
+        return f"ERROR: Command not allowed. Permitted: {allowed_cmds}"
+    result = subprocess.run(
+        ["git"] + cmd_parts,
+        cwd = _repo_root,
+        capture_output = True,
+        text = True
+        )
+    if result.returncode !=0:
+        return f"ERROR: git {command} failed with {result.stderr}"
+    return result.stdout or f"git {command} ran successfully"
 
 def entry_router(state: State) -> Literal["planner", "coder",  "evaluator"]:
     entry_point = state.get("entry_point", "planner")
@@ -223,6 +286,16 @@ def should_retry(error: Exception) -> bool:
     if isinstance(error, APIStatusError):
         return getattr(error, 'status_code', 0) in (429, 529)
     return False
+
+@wrap_model_call
+async def choose_coder_model(request: ModelRequest, handler) -> ModelResponse:
+    """Choose model based on coder_level param. Defaults to basic model"""
+    coder_level = request.state.get("coder_level","")
+    if not coder_level or coder_level != "advanced":
+        model = _llm_coder_basic
+    else:
+        model = _llm_coder_advanced
+    return await handler(request.override(model=model))
 
 def main():
     
@@ -246,7 +319,8 @@ def main():
     config = {"configurable":{"thread_id": 1}}
     result = graph.invoke({"messages":[user_prompt], 
                             "eval_status": 0, 
-                            "entry_point": "planner"}, config)
+                            "entry_point": "planner",
+                            "coder_level": "advanced"}, config)
     print(result)
 
     # Loop to handle interrupts
@@ -275,7 +349,8 @@ def main():
             break
 
 load_dotenv()
-_llm_coder = ChatAnthropic(model="claude-sonnet-4-6")
+_llm_coder_advanced = ChatAnthropic(model="claude-sonnet-4-6")
+_llm_coder_basic = ChatAnthropic(model="claude-haiku-4-5-20251001")
 _llm_planner = ChatAnthropic(model="claude-sonnet-4-6")
 
 _planner_limit_mw = ModelCallLimitMiddleware(
@@ -297,6 +372,18 @@ _retry_mw = ModelRetryMiddleware(
     on_failure="error"
 )
 
+_coder_context_mw = ContextEditingMiddleware(
+    edits=[
+        ClearToolUsesEdit(
+            trigger=30000,       # fire when context hits 30k tokens
+            keep=2,              # keep 2 most recent tool results
+            clear_tool_inputs=True,  # also clear AIMessage tool_use blocks
+            exclude_tools=[],  
+            placeholder="[cleared - file content no longer in context]",
+        ),
+    ],
+)
+
 _repo_root = str(Path.cwd() / "kgs")
 _planner_prompt = Path("planner.md").read_text()
 _coder_prompt = Path("coder.md").read_text()
@@ -304,7 +391,7 @@ _coder_prompt = Path("coder.md").read_text()
 _builder = StateGraph(State)
 
 _planner_tools = [write_file, read_file, read_file_head, handoff_to_coder]
-_coder_tools = [write_file, read_file, read_file_head]
+_coder_tools = [write_file, read_file, read_file_head, run_git]
 planner_agent = create_agent(
     model=_llm_planner,
     tools=_planner_tools,
@@ -315,15 +402,16 @@ planner_agent = create_agent(
     middleware=[_planner_limit_mw, _retry_mw]
 )
 coder_agent = create_agent(
-    model=_llm_coder,
+    model=_llm_coder_basic,
     tools=_coder_tools,
     system_prompt=SystemMessage(
         content=_coder_prompt,
         additional_kwargs={"cache_control": {"type": "ephemeral"}}
     ),
-    middleware=[_coder_limit_mw, _retry_mw]
+    middleware=[choose_coder_model, _coder_context_mw, _coder_limit_mw, _retry_mw]
 )
 _builder.add_node("planner", planner_agent)
+_builder.add_node("coder_entry", coder_entry)
 _builder.add_node("coder", coder_agent)
 _builder.add_node("human_checkpoint", human_checkpoint)
 _builder.add_node("evaluator", make_eval_node(_repo_root))
@@ -334,15 +422,23 @@ _builder.add_conditional_edges(
     entry_router,
     {
         "planner":"planner",
-        "coder":"coder",
+        "coder":"coder_entry",
         "evaluator": "evaluator"
     }
 )
+_builder.add_edge("coder_entry", "coder")
 
 _builder.add_edge("coder", "evaluator")
 
-_builder.add_conditional_edges("evaluator", check_eval_status)
-_builder.add_edge("human_checkpoint", "coder")
+_builder.add_conditional_edges(
+                    "evaluator", 
+                    check_eval_status,
+                    {
+                        "coder_entry":"coder_entry",
+                        "human_checkpoint":"human_checkpoint",
+                        "__end__":END
+                    })
+_builder.add_edge("human_checkpoint", "coder_entry")
 
 checkpointer = MemorySaver()
 graph = _builder.compile()
