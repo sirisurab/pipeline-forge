@@ -1,0 +1,19 @@
+name: dapi
+channels:
+  - conda-forge
+dependencies:
+  - langgraph
+  - langsmith
+  - langchain
+  - langchain-anthropic
+  - langchain-google-genai
+  - notebook
+  - jupyter
+  - jupyterlab
+  - python-dotenv
+  - mypy
+  - ruff
+  - pytest
+  - pip
+  - pip:
+    - deepagents
