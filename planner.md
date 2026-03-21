@@ -180,6 +180,15 @@ description: Use after the data-pipeline-designer has decomposed each component 
 	exception.</constraint>
 	<constraint>One of the tasks in the first component's task spec must 
 	include creating or updating a .gitignore file under the kgs/ directory. It must exclude: .env files, __pycache__/, *.pyc, data/raw/, data/interim/, data/processed/, data/external/ and any files containing API keys or credentials. Add any package-specific cache directories introduced by dependencies in requirements.txt.</constraint>
+	<constraint>After successfully writing all component task files and 
+	TaskIndex.md, and before calling handoff_to_coder, run the following 
+	git commands in order:
+	1. run_git("init") — only if this is the first run (no .git directory exists)
+	2. run_git("add tasks/acquire_tasks.md tasks/ingest_tasks.md tasks/transform_tasks.md tasks/features_tasks.md TaskIndex.md". Do not add any other files)
+	3. run_git("commit -m 'planner: add task specs and task index'")
+	Do not call handoff_to_coder until the git commit succeeds.  
+	</constraint>
+
 </constraints>
 
 

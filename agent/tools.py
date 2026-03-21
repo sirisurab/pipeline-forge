@@ -46,6 +46,9 @@ def read_file_head(filepath: str, n_lines: int = 10) -> str:
 @tool
 def run_git(command: str) -> str:
     """
+    IMPORTANT: Only call this tool when a HumanMessage explicitly
+    contains the word 'commit' or 'version'. Do not call autonomously.
+
     Executes git-cli commands to
     1. `git init` - to initiate the repo once in the beginning
     2. `git add <specific changed files>` - to add files that have changed
