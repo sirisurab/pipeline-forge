@@ -68,22 +68,24 @@ def read_file_head(filepath: str, n_lines: int = 10) -> str:
 
 # utility functions
 def linting(repo_root: str) -> EvalResponse:
+    """ Checks for linting errors
+        Performs formatting and auto-fix of 'safe' linting errors
+    """
+    # format
     result = subprocess.run(
-        [sys.executable, "-m", "ruff", "check"],
+        [sys.executable, "-m", "ruff", "format"],
         cwd=repo_root,
         capture_output=True, 
         text=True
     )
-    return EvalResponse(errors=result.stdout, status= result.returncode)
-
-
-def format_check(repo_root: str) -> EvalResponse:
+    # check for linting errors, auto-fix safe errors and formatting issues
     result = subprocess.run(
-        [sys.executable, "-m", "ruff", "format", "--check"],
+        [sys.executable, "-m", "ruff", "check", "--fix"],
         cwd=repo_root,
-        capture_output=True,
+        capture_output=True, 
         text=True
     )
+
     return EvalResponse(errors=result.stdout, status= result.returncode)
 
 def type_check(repo_root: str) -> EvalResponse:
@@ -155,14 +157,12 @@ def make_eval_node(repo_root: str):
         # Gate 1 — quality checks & tests
         linting_response = linting(repo_root)
         type_check_response = type_check(repo_root)
-        format_response = format_check(repo_root)
         tests_response = run_tests(repo_root)
         response = []
         eval_status = 0
         for check, label in [
             (linting_response, "Linting"),
             (type_check_response, "Type check"),
-            (format_response, "Format check"),
             (tests_response, "Unit Tests")
         ]:
             if check["status"] != 0:
