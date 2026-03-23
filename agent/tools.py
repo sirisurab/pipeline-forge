@@ -6,65 +6,66 @@ from langchain.tools import tool
 from agent.config import repo_root
 
 
-# file read and write tools
 @tool
-def write_file(filepath: str, content: str) -> str:
-    """Write content to a file at the given path."""
-    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-    Path(filepath).write_text(content)
-    return f"Written to {filepath}"
-
-@tool
-def read_file(filepath: str) -> str:
-    """Read content from a file. Raises an error if file exceeds 1MB."""
-    p = Path(filepath)
-    if not p.exists():
-        return f"ERROR: {filepath} does not exist. Check TaskIndex.md for the correct filename."
-    if p.is_dir():
-        return f"ERROR: {filepath} is a directory, not a file. Specify a file path."
-
-    if p.stat().st_size > 1_000_000:
-        return (
-            f"ERROR: {filepath} is too large to read in full "
-            f"({p.stat().st_size:,} bytes). "
-            f"Use read_file_head to preview the first few lines instead."
-        )
-    return p.read_text()
-
-@tool
-def read_file_head(filepath: str, n_lines: int = 10) -> str:
-    """Read the first n lines of a file. Use for previewing large data files."""
-    p = Path(filepath)
-    if not p.exists():
-        return f"ERROR: file {filepath} does not exist"
-    if p.is_dir():
-        return f"ERROR: {filepath} is a directory not a file"
-
-    lines = p.read_text().splitlines()
-    return "\n".join(lines[:n_lines])
-
-@tool
-def run_git(command: str) -> str:
+def stage_and_check_git(command: str) -> str:
     """
-    IMPORTANT: Only call this tool when a HumanMessage explicitly
-    contains the word 'commit' or 'version'. Do not call autonomously.
+    IMPORTANT: Only call this tool at the end of a coding or task-writing run,
+    after you are finished creating or editing all the files in that run,
+    and before returning to the main orchestrating agent.
+    Stage all files changed in the run at one go.
 
-    Executes git-cli commands to
+    Execute git-cli commands to, (only following commands are allowed)
     1. `git init` - to initiate the repo once in the beginning
-    2. `git add <specific changed files>` - to add files that have changed
-    3. `git commit -m "<comment>"` - commits changes with a short but meaningful comment describing the changes
+    2. `git add <specific files> - add specific changed files to git staging
+    3. `git status` - check status of files untracked, modified and staged files
+    4. `git diff` - check difference between changes
+    Params:
+    command : str  - the command like `git add kgs_pipeline/acquire.py kgs_pipeline/ingest.py`
 
-    Do not run `git pull`, `git push`, `git rm` and other destructive commands.
-    Do not run `git add .`
+    Returns:
+    Error message if command is not allowed or if git command fails
+    Output of git command if it succeeds
+    """
+    allowed_cmds = ["init","add", "status","diff"]
+    result = run_git(command, allowed_cmds=allowed_cmds)
+    return result
+
+@tool
+def commit_git(comment: str) -> str:
+    """
+    IMPORTANT: Only call this tool at the end of an orchestration run,
+    after the evaluator returns passed=True with no blockers or failures.
+    All files changed in a succsesful orchestration run should be commited at one go.
+    (where success is determined by evaluator returns passsed=True)
+
+    Execute git-cli commands to, (only commit command is allowed)
+    1. `git commit -m <meaningful comment describing changes in the tested run>` - commits changes for a successfully tested run
 
     Params:
-    command : str  - the command like `git commit -m "fixed datetime error"`
+    comment : str  - the meaningful comment for the git commit command eg. `all unit tests passed`
 
     Returns:
     Error message if command is not allowed or if git command fails
     Output of git command if it succeeds
     """  # noqa: E501
-    allowed_cmds = ["init","add","commit","status","diff"]
+
+    allowed_cmds = ["commit"]
+    command = "commit -m "+comment
+    result = run_git(command, allowed_cmds=allowed_cmds)
+    return result
+
+def run_git(command: str, allowed_cmds: list[str]) -> str:
+    """
+    Internal helper, not a @tool
+
+    Execute git command if in allowed commands
+    Params:
+    command : str
+    allowed_cmds : list[str]
+    Returns:
+    Error message if command is not allowed or if git command fails
+    Output of git command if it succeeds
+    """
     cmd_parts = command.strip().split()
     if not cmd_parts or cmd_parts[0] not in allowed_cmds:
         return f"ERROR: Command not allowed. Permitted: {allowed_cmds}"
