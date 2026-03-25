@@ -49,10 +49,15 @@ def commit_git(comment: str) -> str:
     Output of git command if it succeeds
     """  # noqa: E501
 
-    allowed_cmds = ["commit"]
-    command = "commit -m "+comment
-    result = run_git(command, allowed_cmds=allowed_cmds)
-    return result
+    result = subprocess.run(
+        ["git", "commit", "-m", comment],  # ← pass as list, not string
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        return f"ERROR: git commit failed with {result.stderr}"
+    return result.stdout or "git commit ran successfully"
 
 def run_git(command: str, allowed_cmds: list[str]) -> str:
     """
@@ -67,6 +72,8 @@ def run_git(command: str, allowed_cmds: list[str]) -> str:
     Output of git command if it succeeds
     """
     cmd_parts = command.strip().split()
+    if cmd_parts and cmd_parts[0] == "git" and len(cmd_parts) > 1:
+        cmd_parts = cmd_parts[1:]
     if not cmd_parts or cmd_parts[0] not in allowed_cmds:
         return f"ERROR: Command not allowed. Permitted: {allowed_cmds}"
     result = subprocess.run(

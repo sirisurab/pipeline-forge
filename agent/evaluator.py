@@ -3,16 +3,20 @@ import sys
 import subprocess
 import shutil
 from pathlib import Path
+from datetime import datetime
+import json
 import mypy.api
 from langchain.tools import tool
-from pydantic import BaseModel
 from agent.config import repo_root
+
+eval_file = "eval_results.md"
+eval_path = Path(repo_root) / eval_file
 
 class CheckResult(TypedDict):
     errors: str
     status: int
 
-class EvalResult(BaseModel):
+class EvalResult(TypedDict):
     passed: bool
     blockers: str
     failures: dict[str, str]
@@ -64,7 +68,7 @@ def linting(repo_root: str) -> CheckResult:
     return CheckResult(errors=normalize_paths(result.stdout), status= result.returncode)
 
 def type_check(repo_root: str) -> CheckResult:
-    cache_dir = Path(repo_root) / ".mypy_cache"
+    cache_dir = Path.cwd() / ".mypy_cache"
     if cache_dir.exists():
         shutil.rmtree(cache_dir)
     stdout_report, stderr_report, exit_status = mypy.api.run([repo_root])
@@ -109,8 +113,41 @@ def check_for_blocker(repo_root: str) -> CheckResult:
 def normalize_paths(errors: str) -> str:
     return errors.replace(repo_root + "/", "/").replace("kgs/", "/")
 
+def write_eval_to_file(eval_path: Path, eval_result: EvalResult) -> dict[str, bool | str]:
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Write to file in readable markdown format
+    passed = eval_result["passed"]
+    failures = eval_result["failures"]
+    blockers = eval_result["blockers"]
+    try:
+        with eval_path.open(mode="a") as f:
+            f.write(f"\n## Eval Run at {timestamp}\n\n")
+            f.write(f"**Status:** {'✅ PASSED' if passed else '❌ FAILED'}\n\n")
+            if blockers and blockers != "":
+                f.write("### Blockers:\n")
+                f.write(f"```\n{blockers}\n```\n\n")
+            if failures:
+                f.write("### Failures:\n")
+                for label, error_msg in failures.items():
+                    f.write(f"- **{label}:**\n")
+                    f.write(f"```\n{error_msg}\n```\n\n")
+
+            f.write("---\n")
+    except Exception as e:
+        # Fallback: return full result in response if file write fails
+        return {"passed": passed, "result": f"File write failed: {e}\n\n{json.dumps(eval_result, indent=2)}"}  # noqa: E501
+
+    # Return concise reference to file
+    if passed:
+        return {"passed": True, "result": f"All checks passed. See {eval_file} for details (timestamp: {timestamp})"}  # noqa: E501
+    else:
+        failure_summary = ", ".join(failures.keys())
+        return {"passed": False, "result": f"Eval failed: {failure_summary}. See {eval_file} for full errors (timestamp: {timestamp})"}  # noqa: E501
+
+
 @tool
-def run_evaluator() -> EvalResult:
+def run_evaluator() -> dict[str, bool | str]:
 
     """ Evaluates the pipeline code for linting, type checking and test errors.
         Must be called only after
@@ -125,9 +162,9 @@ def run_evaluator() -> EvalResult:
         blocker_msg = f"""Coder is blocked with the following errors.
         Human intervention needed to fix the errors and unblock the coder-
         errors - {blocker_chk_response['errors']}"""
-        return EvalResult(passed= False,
-                          blockers=blocker_msg,
-                          failures={})
+        eval_result = EvalResult(passed=False, blockers=blocker_msg, failures=dict())
+        result = write_eval_to_file(eval_path, eval_result)
+        return result
 
     # Gate 1 — quality checks & tests
     linting_response = linting(repo_root)
@@ -144,4 +181,6 @@ def run_evaluator() -> EvalResult:
             failures[label] = f"{label} failed. Fix these errors:\n{check['errors']}"
             passed = False
 
-    return EvalResult(passed=passed, blockers="", failures=failures)
+    eval_result = EvalResult(passed=passed, blockers="", failures=failures)
+    result = write_eval_to_file(eval_path, eval_result)
+    return result

@@ -3,5 +3,6 @@
   "graphs": {
     "agent": "./deepagent.py:graph"
   },
-  "env": ".env"
+  "env": ".env",
+  "node_timeout": 600
 }

@@ -7,6 +7,7 @@ rm -rf tasks/
 # Coder artifacts  
 rm -rf kgs_pipeline/
 rm -rf tests/
+rm -f eval_results.md
 rm -f requirements.txt
 rm -f README.md
 rm -f Makefile
