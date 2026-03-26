@@ -103,7 +103,7 @@ description: Use after the data-pipeline-designer has decomposed each component 
 
 <datasets>
 	<dataset>
-		<n>oil_leases_2020_present.txt</n>
+		<name>oil_leases_2020_present.txt</name>
 		<file-path>./references/oil_leases_2020_present.txt</file-path>
 		<data-dictionary>./references/kgs_archives_data_dictionary.csv</data-dictionary>
 		<description>All oil production from Kansas Oil and Gas Leases from 2020 through Sep 2025</description>
@@ -136,91 +136,13 @@ description: Use after the data-pipeline-designer has decomposed each component 
 </datasets>
 
 <test-requirements>
-	<test-requirement type="domain-specific">
-		<n>Physical bound validation</n>
-		<description>Production volumes cannot be negative. Pressure and temperature cannot be
-		negative. Water cut must be between 0 and 1. GOR (gas-oil ratio) must be non-negative.
-		These are physical laws, not data quality preferences — any violation is either a sensor
-		error or a pipeline bug and should be caught explicitly.</description>
-	</test-requirement>
-	<test-requirement type="domain-specific">
-		<n>Unit consistency</n>
-		<description>Oil volumes should be in BBL, gas in MCF, water in BBL throughout. If the
-		raw data mixes units across wells or time periods (common in KGS data), the pipeline
-		should normalize them and a test should verify the normalized values fall within realistic
-		ranges — for example oil rates above 50,000 BBL/month for a single well are almost
-		certainly a unit error.</description>
-	</test-requirement>
-	<test-requirement type="domain-specific">
-		<n>Decline curve monotonicity</n>
-		<description>Cumulative production (Np, Gp, Wp) should be monotonically non-decreasing
-		over time per well. A well cannot un-produce oil. If cumulative values decrease between
-		months, the pipeline has either sorted incorrectly or introduced a processing error.
-		</description>
-	</test-requirement>
-	<test-requirement type="domain-specific">
-		<n>Well completeness check</n>
-		<description>Each well in the processed folder should have a continuous date range with
-		no unexpected gaps. A well producing from January to December should have 12 monthly
-		records, not 11. Test that the count of records per well matches the expected span from
-		first to last production date.</description>
-	</test-requirement>
-	<test-requirement type="domain-specific">
-		<n>Zero production handling</n>
-		<description>Wells that reported zero production in a given month are different from wells
-		with missing data for that month. Your pipeline should preserve the distinction — a zero
-		is a valid measurement, a null is missing data. Test that zeros in the raw data remain as
-		zeros (not nulls) in the processed data.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Data Integrity checks</n>
-		<description>Spot-checking production volumes from raw to processed for randomly chosen
-		wells and months run across a statistically meaningful sample.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Data Cleaning validation</n>
-		<description>Checks to confirm appropriate handling of nulls, missing values, outliers
-		and duplicates. Checks to see if data-types have been set correctly in the processed data
-		files (datetime, float, str).</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Partition correctness</n>
-		<description>Verify that each Parquet partition file contains data for exactly one well —
-		no partition should contain rows from multiple well_id values.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Schema stability across wells</n>
-		<description>All processed Parquet files across all wells should have identical column
-		names and data types. It is possible for per-well processing to produce schema drift if
-		one well has all nulls in a column and type inference guesses wrong. Test that a schema
-		sampled from one well's file matches a schema sampled from another.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Row count reconciliation</n>
-		<description>After deduplication, the processed row count should be less than or equal to
-		the raw row count, never greater. Also test that the deduplication is idempotent — running
-		the cleaning step twice on the same data should produce the same output as running it once.
-		</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Sort stability</n>
-		<description>Verify that the sort is stable across the partition boundary — the last row
-		of one Parquet file for a well should have a date earlier than the first row of the next
-		file for the same well, if the data is partitioned into multiple files per well.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Lazy Dask Evaluation</n>
-		<description>Verify that the pipeline modules do not call .compute() internally. This can
-		be tested by checking that the return type of each pipeline function is
-		dask.dataframe.DataFrame rather than pandas.DataFrame. A function returning a pandas
-		DataFrame has either called .compute() or bypassed Dask entirely.</description>
-	</test-requirement>
-	<test-requirement type="technical">
-		<n>Parquet Readability</n>
-		<description>Test that every output Parquet file is actually readable by a fresh Dask or
-		pandas process. A file that was written incorrectly can exist on disk but raise an error
-		on read. This catches silent write failures.</description>
-	</test-requirement>
+		<name>test-requirements.xml</name>
+		<file-path>./test-requirements.xml</file-path>
+		<description>All the requirements for domain and technical test cases</description>
+		<instructions>
+			<instruction>Before writing any task spec file, read test-requirements.xml in full. Use it as the authoritative source for all test case requirements. Do not write any task spec until this file has been read.
+			</instruction>
+		</instructions>
 </test-requirements>
 
 <constraints>
