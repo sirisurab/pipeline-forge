@@ -86,14 +86,14 @@ description: Use after the data-pipeline-designer has decomposed each component 
 
 		**Error handling:** ...
 
-		**Dependencies:** playwright, pathlib
+		**Dependencies:** BeautifulSoup, pathlib
 
 		**Test case:**
-		- Given a valid lease URL, assert the function returns a Path
+		- Given a valid lease ID, assert the function returns a Path
 		to a .txt file in output_dir
-		- Given a page with no "Save Monthly Data to File" button,
+		- Given a MonthSave page with no anon_blobber.download link,
 		assert ScrapingError is raised
-		- Given a page where the download link is missing, assert the
+		- Given a network error on the download request, assert the
 		function logs a warning and returns None
 
 		**Definition of done:** Function is implemented, test cases pass,
@@ -110,26 +110,28 @@ description: Use after the data-pipeline-designer has decomposed each component 
 		<instructions>
 			<instruction>The file contains all production leases with a URL (column="URL") for
 			each lease. Extracting oil production data for all wells in each lease will require
-			the design of a web-scraping workflow to be included as part of the data-pipeline
+			the design of a download workflow to be included as part of the data-pipeline
 			component for data acquisition. (this workflow must be executed in parallel using dask).
-			Steps for the web-scraping workflow are as follows:
-			 1. Follow each lease url to the web-page for that lease. For example, the URL for
-			    lease "1001135839" will lead to
-			    "https://chasm.kgs.ku.edu/ords/oil.ogl5.MainLease?f_lc=1001135839"
-			 2. Find a button on the top of the lease page that says "Save Monthly Data to File"
-			    and click the button.
-			 3. This leads to another web page for the Monthly Data for the lease
-			    "https://chasm.kgs.ku.edu/ords/oil.ogl5.MonthSave?f_lc=1001135839", here find
-			    a link to the data file (in the case of the lease "1001135839" the link is
-			    labelled something like "lp564.txt") click this link and download the file to
-			    project_root/data/raw
-			 4. The data file is in .txt format, but it can be treated as .csv format. The data
+			Steps for the download workflow are as follows:
+			 1. Extract the lease ID from the URL. For example, the URL for lease "1001135839"
+			    is "https://chasm.kgs.ku.edu/ords/oil.ogl5.MainLease?f_lc=1001135839" and the
+			    lease ID is "1001135839".
+			 2. Make an HTTP GET request to the MonthSave page for the lease:
+			    "https://chasm.kgs.ku.edu/ords/oil.ogl5.MonthSave?f_lc=1001135839"
+			 3. Parse the HTML response using BeautifulSoup to find the download link — it is
+			    an anchor tag whose href contains "anon_blobber.download". For example:
+			    "https://chasm.kgs.ku.edu/ords/qualified.anon_blobber.download?p_file_name=lp564.txt"
+			 4. Make a second HTTP GET request to that download URL and save the response
+			    content to project_root/data/raw using the filename from the p_file_name
+			    parameter (e.g. lp564.txt).
+			 5. The data file is in .txt format, but it can be treated as .csv format. The data
 			    dictionary for the data file is available in this file
 			    ./references/kgs_monthly_data_dictionary.csv
 			</instruction>
-			<instruction>Parallel scraping must be rate-limited to a maximum of 5 concurrent
-			requests to avoid overloading the KGS server. Use an asyncio.Semaphore(5) with
-			playwright's async API to enforce this limit.
+			<instruction>Use the requests library for HTTP and BeautifulSoup for HTML parsing.
+			Do not use Playwright or any browser automation. Rate-limit parallel downloads to
+			a maximum of 5 concurrent workers via Dask. Add a 0.5 second sleep per download
+			worker to avoid overloading the KGS server.
 			</instruction>
 		</instructions>
 	</dataset>
@@ -151,7 +153,7 @@ description: Use after the data-pipeline-designer has decomposed each component 
 	<constraint>Use Dask</constraint>
 	<constraint>Use Parquet for processed/output data files</constraint>
 	<constraint>Use pytest for test-cases</constraint>
-	<constraint>Use playwright for web scraping and browser automation</constraint>
+	<constraint>Use requests and BeautifulSoup for HTTP download and HTML parsing</constraint>
 	<constraint>The output files TaskIndex.md and tasks/componentname_tasks.md must not contain
 	any code.</constraint>
 	<constraint>Write output only to the tasks/ folder and TaskIndex.md. Do not write to, modify,
