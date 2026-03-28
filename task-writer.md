@@ -128,11 +128,18 @@ description: Use after the data-pipeline-designer has decomposed each component 
 			    dictionary for the data file is available in this file
 			    ./references/kgs_monthly_data_dictionary.csv
 			</instruction>
+			<instruction>Before constructing the list of lease URLs to download, filter the lease
+			index to leases with MONTH-YEAR >= 1-2024 (i.e. year component >= 2024). The
+			MONTH-YEAR column format is "M-YYYY" (e.g. "1-2024"). Extract the year by splitting
+			on "-" and taking the last element. Deduplicate by URL after filtering — the index
+			has one row per month per lease, not one row per lease.
+			</instruction>
 			<instruction>Use the requests library for HTTP and BeautifulSoup for HTML parsing.
 			Do not use Playwright or any browser automation. Rate-limit parallel downloads to
 			a maximum of 5 concurrent workers via Dask. Add a 0.5 second sleep per download
 			worker to avoid overloading the KGS server.
 			</instruction>
+
 		</instructions>
 	</dataset>
 </datasets>
