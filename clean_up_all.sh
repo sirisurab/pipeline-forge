@@ -13,6 +13,11 @@ rm -f README.md
 rm -f Makefile
 rm -f pytest.ini
 rm -f mypy.ini
+rm -f .mypy.ini
 rm -f setup.cfg
 rm -f pyproject.toml
 rm -f .gitignore
+
+# Deepagents runtime artifacts
+rm -rf large_tool_results/
+rm -rf conversation_history/
