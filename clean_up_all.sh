@@ -21,3 +21,6 @@ rm -f .gitignore
 # Deepagents runtime artifacts
 rm -rf large_tool_results/
 rm -rf conversation_history/
+
+rm -rf logs/
+rm -rf __pycache__/
