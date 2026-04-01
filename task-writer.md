@@ -104,7 +104,7 @@ description: Use after the data-pipeline-designer has decomposed each component 
 <datasets>
 	<dataset>
 		<name>oil_leases_2020_present.txt</name>
-		<file-path>./references/oil_leases_2020_present.txt</file-path>
+		<file-path>./data/external/oil_leases_2020_present.txt</file-path>
 		<data-dictionary>./references/kgs_archives_data_dictionary.csv</data-dictionary>
 		<description>All oil production from Kansas Oil and Gas Leases from 2020 through Sep 2025</description>
 		<instructions>
@@ -172,9 +172,6 @@ description: Use after the data-pipeline-designer has decomposed each component 
 
     <constraint>Makefile must never reference playwright. The acquire stage uses
     requests and BeautifulSoup only.</constraint>
-
-    <constraint>Makefile acquire target must reference oil_leases_2024_present.txt,
-    not oil_leases_2020_present.txt.</constraint>
 
     <constraint>pyproject.toml dev dependencies must include pandas-stubs and
     types-requests. Without these, mypy type checks fail on every run.</constraint>

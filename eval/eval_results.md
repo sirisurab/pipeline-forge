@@ -1,16 +1,16 @@
 # KGS Pipeline — LLM Judge Eval Results
-*Generated: 2026-03-26 09:15*
+*Generated: 2026-04-01 14:28*
 *Judge: Groq / llama-3.3-70b-versatile*
 
 ## Summary
 
 | File | domain_correctness_acquire | test_quality | pipeline_integrity_acquire |
 |---||---||---||---|
-| test_acquire.py | ✓ 0.80 | ✓ 0.80 | ✓ 0.80 |
+| test_acquire.py | ✓ 0.80 | ✓ 0.70 | ✓ 0.80 |
 
 | File | domain_correctness_ingest | test_quality | pipeline_integrity_ingest |
 |---||---||---||---|
-| test_ingest.py | ✓ 0.60 | ✓ 0.80 | ✓ 0.80 |
+| test_ingest.py | ✓ 0.80 | ✓ 0.80 | ✓ 0.80 |
 
 | File | domain_correctness_transform | test_quality | pipeline_integrity_transform |
 |---||---||---||---|
@@ -28,106 +28,96 @@
 
 **domain_correctness_acquire** — PASS (0.80)
 
-> The test file includes tests for idempotency in the acquire step, verifying that running it twice on
-> the same target directory does not duplicate files or corrupt existing ones, as seen in
-> test_run_acquire_pipeline_idempotent and test_scrape_idempotency_skips_existing. It also checks for
-> file integrity, ensuring downloaded files are not empty and contain at least one data row beyond the
-> header, as demonstrated in tests like test_is_valid_raw_file_valid and
-> test_is_valid_raw_file_zero_bytes. However, the test file does not explicitly verify that the number
-> of downloaded files matches the number of leases or targets requested, which is a crucial aspect of
-> file count reconciliation.
+> The test file does test the idempotency of the download_file function, ensuring that running it
+> twice on the same target directory does not duplicate files or raise an error. It also tests the
+> integrity of the acquired files by checking their size and readability. However, it does not
+> explicitly test that the number of downloaded files matches the number of leases or targets
+> requested, which could indicate a silent partial failure.
 
-**test_quality** — PASS (0.80)
+**test_quality** — PASS (0.70)
 
-> The test suite covers various scenarios, including happy paths and edge cases, with a good mix of
-> unit tests and integration tests. It also checks for idempotency and error propagation. However,
-> some tests only check the return type or mock the entire function under test, which could be
-> improved by testing the actual functionality. Additionally, there are no tests for invalid inputs or
-> extreme values in some cases, which could lead to incomplete testing.
+> The test suite covers various scenarios, including happy paths and edge cases, with a good balance
+> of tests for different functions. However, some tests only check for the existence of files or the
+> type of the result, without verifying the actual content or values. Additionally, there are no tests
+> that check for invalid or missing inputs, and some tests use exact equality for floating-point
+> comparisons. The test suite also lacks tests for error handling and boundary cases.
 
 **pipeline_integrity_acquire** — PASS (0.80)
 
-> The tests provided use mocking to avoid real network calls and verify the output directory structure
-> after acquire, checking for the existence of expected subdirectories and files in the correct
-> locations. However, some tests only check that a function returns without error, rather than
-> verifying the filesystem state is correct.
+> The tests use mocking to avoid real network calls, which is good practice. However, the tests do not
+> thoroughly verify the output directory structure after acquire, only checking that a function
+> returns without error in some cases.
 
 ### test_ingest.py
 
-**domain_correctness_ingest** — PASS (0.60)
+**domain_correctness_ingest** — PASS (0.80)
 
-> The test file covers various aspects of the ingest pipeline, including discovering raw files,
-> reading raw files, filtering monthly records, enriching with lease metadata, applying the interim
-> schema, and writing interim parquet files. However, it does not explicitly test the distinction
-> between zero production and missing data, and unit consistency is only partially addressed through
-> the application of the interim schema. Date parsing is also not explicitly tested.
+> The test file thoroughly checks the ingestion process, including reading raw files, validating
+> schema, coercing types, filtering date ranges, and running the ingest process. It also tests for
+> zero production retention and schema completeness across partitions. However, it does not explicitly
+> test the distinction between zero production and missing data, and unit consistency is only
+> partially tested.
 
 **test_quality** — PASS (0.80)
 
-> The test suite covers various tasks and functions, including discover_raw_files, read_raw_files,
-> filter_monthly_records, enrich_with_lease_metadata, apply_interim_schema, write_interim_parquet, and
-> run_ingest_pipeline. It tests for different scenarios, such as handling empty directories,
-> nonexistent files, and invalid data. However, some tests only check for the return type or the
-> presence of certain columns, which may not be sufficient to ensure the correctness of the functions.
-> Additionally, there are no tests for floating-point comparisons, which could lead to fragile tests.
+> The test suite covers various aspects of the ingest pipeline, including reading raw files,
+> validating schema, coercing types, filtering date ranges, and running the ingest process. It also
+> checks for required columns, handles partial failures, and verifies the correctness of the output.
+> However, some tests only check the happy path, and there are no explicit tests for extreme values or
+> missing data. Additionally, some assertions are trivially true, such as checking the type of the
+> result.
 
 **pipeline_integrity_ingest** — PASS (0.80)
 
-> The tests verify the ingest output schema, check for Dask laziness, and test row count
-> reconciliation. However, they do not thoroughly verify the ingest output schema's dtypes and do not
-> test deduplication idempotence. Additionally, some tests read from disk, which may cause issues in
-> CI.
+> The tests verify the ingest output schema, checking for correct column names and dtypes, and ensure
+> that the ingest step does not call .compute() internally, returning a dask.dataframe.DataFrame. The
+> tests also verify row count reconciliation and use synthetic fixture data. However, the tests do not
+> fully verify deduplication idempotence and do not comprehensively check Dask laziness.
 
 ### test_transform.py
 
 **domain_correctness_transform** — PASS (0.60)
 
-> The test file covers various aspects of the transformation pipeline, including loading interim
-> parquet files, parsing production dates, normalizing column names, exploding API numbers, validating
-> physical bounds, deduplicating records, sorting and repartitioning data, and writing processed
-> parquet files. However, it lacks comprehensive tests for physical bounds validation, water cut
-> bounds, and the zero-vs-null distinction after transformation. Additionally, the test for cumulative
-> production monotonicity is not explicitly covered.
+> The test file covers various aspects of data transformation and validation, including handling
+> nulls, removing duplicates, capping outliers, and deriving production dates. However, it lacks
+> comprehensive tests for physical bounds validation, water cut bounds, and the zero-vs-null
+> distinction after transformation. Additionally, the tests for cumulative production do not
+> explicitly cover the required distinct cases, such as the decreasing case, flat periods, and
+> resumption after shut-in.
 
 **test_quality** — PASS (0.80)
 
 > The test suite covers a wide range of scenarios, including happy paths and edge cases, and uses
-> various testing techniques such as mocking and parameterization. However, some tests only check the
-> return type or mock the entire function under test, which may not thoroughly test the code's
-> functionality. Additionally, there are no tests for invalid inputs or extreme values in some test
-> functions, which could lead to incomplete testing.
+> approximate comparison for floating-point outputs. However, some tests only check the return type or
+> mock the entire function under test, and there are no tests for extreme values or invalid inputs in
+> certain functions.
 
 **pipeline_integrity_transform** — PASS (0.80)
 
-> The tests verify the correctness of individual functions, such as load_interim_parquet,
-> parse_production_date, and validate_physical_bounds, and also test the overall pipeline. However,
-> the tests do not explicitly verify that output Parquet files are partitioned by well_id, and the
-> well_id column is present. Additionally, while the tests validate the output schema, they do not
-> comprehensively check the dtypes of all columns.
+> The tests verify the output schema, validate Dask laziness, and use synthetic fixture DataFrames.
+> However, they do not explicitly check if output Parquet files are partitioned by well_id, and some
+> tests marked @pytest.mark.unit have filesystem dependencies.
 
 ### test_features.py
 
 **domain_correctness_features** — PASS (0.80)
 
-> The test file covers various edge cases for GOR, decline rate, and feature calculations, including
-> clipping bounds, shut-in wells, and NaN values. It also verifies the presence of expected feature
-> columns and checks for correct calculations of rolling and lag features. However, it does not
-> explicitly test the GOR formula for unit-swapped variants or the water cut formula, and some tests
-> only cover happy-path values.
+> The test file covers various edge cases for GOR, decline rate clip bounds, and feature calculation
+> correctness, including tests for NaN and zero values. It also verifies the presence of expected
+> feature columns in the output. However, some tests only cover happy-path values, and there is room
+> for improvement in testing more extreme or edge cases, such as very high GOR on low oil production.
 
 **test_quality** — PASS (0.80)
 
-> The test suite covers a wide range of scenarios, including happy paths and edge cases, and uses
-> various testing techniques such as mocking and parameterization. However, some tests only check the
-> return type or the presence of certain columns, without verifying the actual values or behavior.
-> Additionally, there are no tests for invalid or missing inputs, which could lead to incomplete or
-> incorrect results.
+> The test suite covers a wide range of scenarios, including edge cases and error handling, and uses
+> approximate comparison for floating-point outputs. However, some tests only check the return type or
+> mock the entire function under test, and there are no tests for invalid inputs or extreme values in
+> certain functions.
 
 **pipeline_integrity_features** — PASS (0.80)
 
-> The tests verify the correctness of various feature computation functions, including cumulative
-> production, decline rate, rolling features, lag features, time features, and ratio features. They
-> also check that the functions return Dask DataFrames and that the output schema is correct. However,
-> the tests do not verify that the output Parquet is partitioned by well_id and that each partition
-> contains data for exactly one well, and they do not thoroughly validate the full output schema
-> including all feature columns with correct dtypes.
+> The tests verify the correctness of various feature engineering functions, including
+> compute_cumulative, compute_ratios, compute_decline_rate, compute_rolling, and compute_lags, and
+> also check the schema stability across partitions. However, the tests do not explicitly verify that
+> the output Parquet is partitioned by well_id and that each partition contains data for exactly one
+> well, and some tests depend on upstream pipeline output.

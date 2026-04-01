@@ -4,7 +4,6 @@
 # prints a summary table, and writes results to eval_results.md.
 #
 # Usage:
-#   export GROQ_API_KEY=your_key_here
 #   python eval/run_eval.py
 #
 # Expects to be run from the repo root (dapi_poc/ parent), with kgs/ as a sibling:
@@ -20,7 +19,6 @@
 import os
 import sys
 from dotenv import load_dotenv
-load_dotenv()
 import textwrap
 from pathlib import Path
 from datetime import datetime
@@ -139,6 +137,9 @@ def write_markdown_report(all_results: dict):
 
 
 def main():
+
+    load_dotenv()
+
     if not KGS_TESTS_DIR.exists():
         print(f"ERROR: kgs/tests/ not found at {KGS_TESTS_DIR}")
         print("Adjust KGS_TESTS_DIR in run_eval.py or run from repo root.")
