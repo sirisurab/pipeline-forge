@@ -113,7 +113,7 @@ Keep your response under 200 words.
 ### Directory Structure
 
 ```
-├── TaskIndex.md
+├── TaskIndex.md           <- The Task Index created by the task-writer.
 ├── tasks/
 │   ├── acquire_tasks.md
 │   ├── ingest_tasks.md
@@ -121,11 +121,12 @@ Keep your response under 200 words.
 │   └── features_tasks.md
 ├── data/
 │   ├── external/
+│   |	|── oil_leases_2020_present.txt
+|	|
 │   ├── interim/
 │   ├── processed/
 │   └── raw/
 ├── references/
-│   ├── oil_leases_2020_present.txt
 │   ├── kgs_archives_data_dictionary.csv
 │   └── kgs_monthly_data_dictionary.csv
 ├── requirements.txt

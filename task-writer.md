@@ -154,6 +154,79 @@ description: Use after the data-pipeline-designer has decomposed each component 
 		</instructions>
 </test-requirements>
 
+<non-negotiable>
+  These constraints are non-negotiable and must be applied in every run without exception.
+  They are derived from observed failure modes across multiple agent runs.
+
+  <build-env>
+    <constraint>pyproject.toml build-backend must always be "setuptools.build_meta".
+    Never use "setuptools.backends.legacy:build" — this breaks pip editable install
+    on Python 3.13.</constraint>
+
+    <constraint>Makefile must include a "make env" target that creates a .venv using
+    "python3 -m venv .venv". The install target must bootstrap pip, setuptools, and
+    wheel before installing dependencies:
+      pip install --upgrade pip setuptools wheel
+      pip install -e ".[dev]"
+    Never use "pip install -r requirements.txt" as the sole install step.</constraint>
+
+    <constraint>Makefile must never reference playwright. The acquire stage uses
+    requests and BeautifulSoup only.</constraint>
+
+    <constraint>Makefile acquire target must reference oil_leases_2024_present.txt,
+    not oil_leases_2020_present.txt.</constraint>
+
+    <constraint>pyproject.toml dev dependencies must include pandas-stubs and
+    types-requests. Without these, mypy type checks fail on every run.</constraint>
+  </build-env>
+
+  <dask-parquet>
+    <constraint>All map_partitions meta DataFrames must use pd.StringDtype() for
+    string columns. Never use "object" as a dtype value in any meta= argument.
+    Using "object" dtype causes pyarrow.lib.ArrowInvalid errors when writing
+    Parquet.</constraint>
+    <constraint>After reading any Parquet dataset, immediately repartition to
+    min(npartitions, 50) before running any transformation, groupby, or
+    map_partitions operations. Never operate on more than 50 partitions —
+    performance degrades severely above this threshold on single-machine
+    deployments.</constraint>
+   <constraint>Never write more than 200 Parquet files per stage output. Target
+	20-50 output files for the full dataset. Repartition before writing if the
+	natural partition count exceeds this. When using partition_on with a high
+	cardinality column (e.g. a unique entity identifier), always repartition to
+	a reasonable number of partitions first — partitioning on a column with
+	thousands of unique values produces one file per value, which is unusable
+	for downstream ML workflows.</constraint>
+    <constraint>Row filtering using string operations must be done inside a
+    map_partitions function, not directly on a Dask Series. Dask's .str accessor
+    is unreliable on Series produced by repartition or astype operations. Use:
+      def _filter(pdf):
+          ...pandas operations...
+          return pdf[mask]
+      ddf = ddf.map_partitions(_filter, meta=ddf._meta)
+    </constraint>
+  </dask-parquet>
+
+  <data-filtering>
+    <constraint>The ingest stage must filter rows to the target date range
+    (year >= 2024) after reading raw files. Raw lease files downloaded from KGS
+    contain full production history going back to the 1960s regardless of the
+    acquire filter. Extract year from MONTH-YEAR column (format "M-YYYY", split
+    on "-", take last element). Drop rows where year &lt; 2024 and rows where
+    the year component is not numeric (e.g. "-1-1965", "0-1966").</constraint>
+  </data-filtering>
+
+  <ingest>
+    <constraint>Ingest must write a small number of consolidated interim Parquet
+	files — target npartitions = max(1, total_rows // 500_000) to keep file count
+	low while avoiding excessively large single files. Never write one file per
+	source entity (e.g. one file per lease, one file per well) — this produces
+	tens of thousands of tiny files that cause severe downstream performance
+	degradation in transform and features. Always repartition before writing:
+	ddf.repartition(npartitions=N).to_parquet(...)</constraint>
+  </ingest>
+</non-negotiable>
+
 <constraints>
 	<constraint>Use Python 3.11+</constraint>
 	<constraint>Use Pandas</constraint>
@@ -185,6 +258,7 @@ description: Use after the data-pipeline-designer has decomposed each component 
     </constraint>
 	<constraint>After all task files and TaskIndex.md are successfully written and call to `stage_and_check_git` returns, 
     return a concise completion summary: list the files written, status of `stage_and_check_git` tool call and confirm completion. Do not describe file contents in your response.</constraint>
+	<constraint>The `data/` folder must be added to .gitignore</constraint>
 </constraints>
 ## Response Format
 
@@ -208,11 +282,12 @@ Keep your response under 200 words.
 │   └── features_tasks.md
 ├── data/
 │   ├── external/
+│   |	|── oil_leases_2020_present.txt
+|	|
 │   ├── interim/
 │   ├── processed/
 │   └── raw/
 ├── references/
-│   ├── oil_leases_2020_present.txt
 │   ├── kgs_archives_data_dictionary.csv
 │   └── kgs_monthly_data_dictionary.csv
 ├── requirements.txt
