@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 import mypy.api
 from langchain.tools import tool
-from agent.config import repo_root
+from agent.config import repo_root, project
 
 eval_file = "eval_results.md"
 eval_path = Path(repo_root) / eval_file
@@ -22,31 +22,7 @@ class EvalResult(TypedDict):
     failures: dict[str, str]
 
 # utility functions
-def ensure_playwright(repo_root:str):
-    """
-    Makes sure playwrigth and chromium are installed.
-    If not, installs them
-    """
-    check_playwright = subprocess.run(
-        [sys.executable, "-c", "import playwright"],
-        cwd=repo_root,
-        capture_output=True
-    )
-    if check_playwright.returncode != 0:
-        # install playwright
-        subprocess.run(
-            [sys.executable,"-m","pip","install","playwright"],
-            cwd=repo_root,
-            capture_output = True
-        )
-    subprocess.run(
-            [sys.executable,"-m","playwright","install","chromium"],
-            cwd=repo_root,
-            capture_output = True
-        )
-
-
-def linting(repo_root: str) -> CheckResult:
+def linting(repo_root: str, project: str) -> CheckResult:
     """ Checks for linting errors
         Performs formatting and auto-fix of 'safe' linting errors
     """
@@ -65,16 +41,16 @@ def linting(repo_root: str) -> CheckResult:
         text=True
     )
 
-    return CheckResult(errors=normalize_paths(result.stdout), status= result.returncode)
+    return CheckResult(errors=normalize_paths(result.stdout, project=project), status= result.returncode)
 
-def type_check(repo_root: str) -> CheckResult:
+def type_check(repo_root: str, project: str) -> CheckResult:
     cache_dir = Path.cwd() / ".mypy_cache"
     if cache_dir.exists():
         shutil.rmtree(cache_dir)
     stdout_report, stderr_report, exit_status = mypy.api.run([repo_root])
-    return CheckResult(errors=normalize_paths(stdout_report), status=exit_status)
+    return CheckResult(errors=normalize_paths(stdout_report, project=project), status=exit_status)
 
-def run_tests(repo_root: str) -> CheckResult:
+def run_tests(repo_root: str, project: str) -> CheckResult:
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "tests/",
         "-m","not integration",
@@ -84,12 +60,13 @@ def run_tests(repo_root: str) -> CheckResult:
         capture_output = True,
         text = True
     )
-    return CheckResult(errors=normalize_paths(result.stdout+result.stderr), status=result.returncode)
+    return CheckResult(errors=normalize_paths(result.stdout+result.stderr, project=project), status=result.returncode)
 
-def check_for_blocker(repo_root: str) -> CheckResult:
-    """Search all Python files in kgs_pipeline/ and tests/ for BLOCKER: comments."""
+def check_for_blocker(repo_root: str, project: str) -> CheckResult:
+    """Search all Python files in {project}_pipeline/ and tests/ for BLOCKER: comments."""
+
     blockers = []
-    search_dirs = ["kgs_pipeline", "tests"]
+    search_dirs = [f"{project}_pipeline", "tests"]
 
     for dir_name in search_dirs:
         search_path = Path(repo_root) / dir_name
@@ -110,8 +87,8 @@ def check_for_blocker(repo_root: str) -> CheckResult:
     return CheckResult(errors="", status=0)
 
 # Strip repo_root prefix from error messages so paths are virtual-FS relative
-def normalize_paths(errors: str) -> str:
-    return errors.replace(repo_root + "/", "/").replace("kgs/", "/")
+def normalize_paths(errors: str, project: str) -> str:
+    return errors.replace(repo_root + "/", "/").replace(f"{project}/", "/")
 
 def write_eval_to_file(eval_path: Path, eval_result: EvalResult) -> dict[str, bool | str]:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -146,6 +123,14 @@ def write_eval_to_file(eval_path: Path, eval_result: EvalResult) -> dict[str, bo
         return {"passed": False, "result": f"Eval failed: {failure_summary}. See {eval_file} for full errors (timestamp: {timestamp})"}  # noqa: E501
 
 
+def install_deps(repo_root: str) -> None:
+    """Install dev dependencies from pyproject.toml before running checks."""
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-e", ".[dev]", "-q"],
+        cwd=repo_root,
+        capture_output=True,
+    )
+
 @tool
 def run_evaluator() -> dict[str, bool | str]:
 
@@ -154,10 +139,8 @@ def run_evaluator() -> dict[str, bool | str]:
         1. coder-advanced has confirmed that code-writing is complete
         2. coder-basic has confirmed that code-fixing is complete
     """
-    #ensure playwrigth is installed
-    ensure_playwright(repo_root)
     # Gate 0 - coder blocked
-    blocker_chk_response = check_for_blocker(repo_root)
+    blocker_chk_response = check_for_blocker(repo_root, project=project)
     if blocker_chk_response["status"] == 2:
         blocker_msg = f"""Coder is blocked with the following errors.
         Human intervention needed to fix the errors and unblock the coder-
@@ -166,10 +149,13 @@ def run_evaluator() -> dict[str, bool | str]:
         result = write_eval_to_file(eval_path, eval_result)
         return result
 
-    # Gate 1 — quality checks & tests
-    linting_response = linting(repo_root)
-    type_check_response = type_check(repo_root)
-    tests_response = run_tests(repo_root)
+    # Gate 1 — ensure dev deps installed (pandas-stubs, types-requests etc.)
+    install_deps(repo_root)
+
+    # Gate 2 — quality checks & tests
+    linting_response = linting(repo_root, project=project)
+    type_check_response = type_check(repo_root, project=project)
+    tests_response = run_tests(repo_root, project=project)
     failures = dict()
     passed = True
     for check, label in [

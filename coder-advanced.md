@@ -23,11 +23,11 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
 	<output-files>
 		<note>The full list of output files is defined in the task spec files under tasks/</note>
 		<sample-output-file>
-			<n>kgs_pipeline/acquire.py</n>
+			<n>{project}_pipeline/acquire.py</n>
 			<description>Implements data-acquisition logic from tasks/acquire_tasks.md</description>
 		</sample-output-file>
 		<sample-output-file>
-			<n>kgs_pipeline/ingest.py</n>
+			<n>{project}_pipeline/ingest.py</n>
 			<description>Implements data-ingestion logic from tasks/ingest_tasks.md</description>
 		</sample-output-file>
 		<sample-output-file>
@@ -43,23 +43,23 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
 	and dependencies. The definition of done is your acceptance criterion.
 	</description>
 	<task-detail>
-		## Task 03: Implement lease page scraper
+		## Task 03: Implement data file downloader
 
-		**Module:** `kgs_pipeline/acquire.py`
-		**Function:** `scrape_lease_page(lease_url: str, output_dir: str) -> Path`
+		**Module:** `{project}_pipeline/acquire.py`
+		**Function:** `download_file(entity_id: str, output_dir: str) -> Path`
 
 		**Description:** ...
 
 		**Error handling:** ...
 
-		**Dependencies:** playwright, pathlib
+		**Dependencies:** requests, pathlib
 
 		**Test case:**
-		- Given a valid lease URL, assert the function returns a Path
-		to a .txt file in output_dir
-		- Given a page with no "Save Monthly Data to File" button,
-		assert ScrapingError is raised
-		- Given a page where the download link is missing, assert the
+		- Given a valid entity ID, assert the function returns a Path
+		to a file in output_dir
+		- Given a download page with no valid download link,
+		assert DownloadError is raised
+		- Given a network error on the download request, assert the
 		function logs a warning and returns None
 
 		**Definition of done:** Function is implemented, test cases pass,
@@ -79,14 +79,13 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
 	<constraint>Use Dask</constraint>
 	<constraint>Use Parquet for processed/output data files</constraint>
 	<constraint>Use pytest for test-cases</constraint>
-	<constraint>Use playwright for web scraping and browser automation</constraint>
 	<constraint>Do not include excessive code comments. Write concise, useful comments and
 	docstrings.</constraint>
 	<constraint>If a task cannot be implemented as specified, write a comment block in the
 	target file with the prefix BLOCKER: explaining the specific issue. Do not proceed to
 	subsequent tasks.</constraint>
 	<constraint>Write only the following files:
-	kgs_pipeline/*.py, tests/test_*.py, requirements.txt, README.md, Makefile,
+	{project}_pipeline/*.py, tests/test_*.py, requirements.txt, README.md, Makefile,
 	pytest.ini, mypy.ini, pyproject.toml, .gitignore
 	Do not create documentation files, architecture files, summary files, example scripts,
 	verification scripts, or any other files not listed above.</constraint>
@@ -94,7 +93,7 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
     call `stage_and_check_git` to execute `git add {specific-files changed}`.
     Add all files changed in the run at one go.
     eg. the call will look like 
-    stage_and_check_git("git add kgs_pipeline/config.py kgs_pipeline/acquire.py kgs_pipeline/ingest.py kgs_pipeline/transform.py kgs_pipeline/features.py")
+    stage_and_check_git("git add {project}_pipeline/config.py {project}_pipeline/acquire.py {project}_pipeline/ingest.py {project}_pipeline/transform.py {project}_pipeline/features.py")
     </constraint>
 	<constraint>After all components are implemented and all test files are written and call to `stage_and_check_git` returns, return a concise completion summary: list the files written per component and status of `stage_and_check_git` tool call. Do not describe implementation details in your response.</constraint>
 </constraints>
@@ -120,22 +119,18 @@ Keep your response under 200 words.
 │   ├── transform_tasks.md
 │   └── features_tasks.md
 ├── data/
-│   ├── external/
-│   |	|── oil_leases_2020_present.txt
-|	|
+│   ├── external/          <- source index / reference data files
 │   ├── interim/
 │   ├── processed/
 │   └── raw/
-├── references/
-│   ├── kgs_archives_data_dictionary.csv
-│   └── kgs_monthly_data_dictionary.csv
+├── references/            <- data dictionaries and static reference docs
 ├── requirements.txt
 ├── tests/
 │   ├── test_acquire.py
 │   ├── test_ingest.py
 │   ├── test_transform.py
 │   └── test_features.py
-└── kgs_pipeline/
+└── {project}_pipeline/
     ├── __init__.py
     ├── config.py
     ├── acquire.py

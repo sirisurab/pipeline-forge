@@ -20,7 +20,7 @@ def stage_and_check_git(command: str) -> str:
     3. `git status` - check status of files untracked, modified and staged files
     4. `git diff` - check difference between changes
     Params:
-    command : str  - the command like `git add kgs_pipeline/acquire.py kgs_pipeline/ingest.py`
+    command : str  - the command like `git add {project}_pipeline/acquire.py {project}_pipeline/ingest.py`
 
     Returns:
     Error message if command is not allowed or if git command fails

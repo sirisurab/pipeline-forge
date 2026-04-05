@@ -58,10 +58,10 @@ description: Use after the data-pipeline-designer has decomposed each component 
 			</description>
 			<example>
 			# Task Index
-			- tasks/acquire_tasks.md     ← all acquire tasks
-			- tasks/ingest_tasks.md      ← all ingest tasks
-			- tasks/transform_tasks.md   ← all transform tasks
-			- tasks/features_tasks.md    ← all features tasks
+			- tasks/acquire_tasks.md     <- all acquire tasks
+			- tasks/ingest_tasks.md      <- all ingest tasks
+			- tasks/transform_tasks.md   <- all transform tasks
+			- tasks/features_tasks.md    <- all features tasks
 			</example>
 		</output-file>
 		<output-file>
@@ -77,22 +77,22 @@ description: Use after the data-pipeline-designer has decomposed each component 
 
 
 <task-spec-example>
-		## Task 03: Implement lease page scraper
+		## Task 03: Implement data file downloader
 
-		**Module:** `kgs_pipeline/acquire.py`
-		**Function:** `scrape_lease_page(lease_url: str, output_dir: str) -> Path`
+		**Module:** `{project}_pipeline/acquire.py`
+		**Function:** `download_file(entity_id: str, output_dir: str) -> Path`
 
 		**Description:** ...
 
 		**Error handling:** ...
 
-		**Dependencies:** BeautifulSoup, pathlib
+		**Dependencies:** requests, pathlib
 
 		**Test case:**
-		- Given a valid lease ID, assert the function returns a Path
-		to a .txt file in output_dir
-		- Given a MonthSave page with no anon_blobber.download link,
-		assert ScrapingError is raised
+		- Given a valid entity ID, assert the function returns a Path
+		to a file in output_dir
+		- Given a download page with no valid download link,
+		assert DownloadError is raised
 		- Given a network error on the download request, assert the
 		function logs a warning and returns None
 
@@ -101,55 +101,22 @@ description: Use after the data-pipeline-designer has decomposed each component 
 		third-party packages imported in this task.
 </task-spec-example>
 
-<datasets>
-	<dataset>
-		<name>oil_leases_2020_present.txt</name>
-		<file-path>./data/external/oil_leases_2020_present.txt</file-path>
-		<data-dictionary>./references/kgs_archives_data_dictionary.csv</data-dictionary>
-		<description>All oil production from Kansas Oil and Gas Leases from 2020 through Sep 2025</description>
-		<instructions>
-			<instruction>The file contains all production leases with a URL (column="URL") for
-			each lease. Extracting oil production data for all wells in each lease will require
-			the design of a download workflow to be included as part of the data-pipeline
-			component for data acquisition. (this workflow must be executed in parallel using dask).
-			Steps for the download workflow are as follows:
-			 1. Extract the lease ID from the URL. For example, the URL for lease "1001135839"
-			    is "https://chasm.kgs.ku.edu/ords/oil.ogl5.MainLease?f_lc=1001135839" and the
-			    lease ID is "1001135839".
-			 2. Make an HTTP GET request to the MonthSave page for the lease:
-			    "https://chasm.kgs.ku.edu/ords/oil.ogl5.MonthSave?f_lc=1001135839"
-			 3. Parse the HTML response using BeautifulSoup to find the download link — it is
-			    an anchor tag whose href contains "anon_blobber.download". For example:
-			    "https://chasm.kgs.ku.edu/ords/qualified.anon_blobber.download?p_file_name=lp564.txt"
-			 4. Make a second HTTP GET request to that download URL and save the response
-			    content to project_root/data/raw using the filename from the p_file_name
-			    parameter (e.g. lp564.txt).
-			 5. The data file is in .txt format, but it can be treated as .csv format. The data
-			    dictionary for the data file is available in this file
-			    ./references/kgs_monthly_data_dictionary.csv
-			</instruction>
-			<instruction>Before constructing the list of lease URLs to download, filter the lease
-			index to leases with MONTH-YEAR >= 1-2024 (i.e. year component >= 2024). The
-			MONTH-YEAR column format is "M-YYYY" (e.g. "1-2024"). Extract the year by splitting
-			on "-" and taking the last element. Deduplicate by URL after filtering — the index
-			has one row per month per lease, not one row per lease.
-			</instruction>
-			<instruction>Use the requests library for HTTP and BeautifulSoup for HTML parsing.
-			Do not use Playwright or any browser automation. Rate-limit parallel downloads to
-			a maximum of 5 concurrent workers via Dask. Add a 0.5 second sleep per download
-			worker to avoid overloading the KGS server.
-			</instruction>
-
-		</instructions>
-	</dataset>
-</datasets>
+<project-context>
+	<instruction>Before starting any task decomposition, read the project-specific file
+	task-writer-{project}.md in full. It contains the dataset description, download workflow,
+	domain context, directory structure, and data-filtering constraints specific to this project.
+	Do not write any task spec until this file has been read.
+	</instruction>
+</project-context>
 
 <test-requirements>
-		<name>test-requirements.xml</name>
+		<n>test-requirements.xml</n>
 		<file-path>./test-requirements.xml</file-path>
 		<description>All the requirements for domain and technical test cases</description>
 		<instructions>
-			<instruction>Before writing any task spec file, read test-requirements.xml in full. Use it as the authoritative source for all test case requirements. Do not write any task spec until this file has been read.
+			<instruction>Before writing any task spec file, read test-requirements.xml in full.
+			Use it as the authoritative source for all test case requirements. Do not write any
+			task spec until this file has been read.
 			</instruction>
 		</instructions>
 </test-requirements>
@@ -162,17 +129,15 @@ description: Use after the data-pipeline-designer has decomposed each component 
     <constraint>pyproject.toml build-backend must always be "setuptools.build_meta".
     Never use "setuptools.backends.legacy:build" — this breaks pip editable install
     on Python 3.13.</constraint>
-
     <constraint>Makefile must include a "make env" target that creates a .venv using
     "python3 -m venv .venv". The install target must bootstrap pip, setuptools, and
     wheel before installing dependencies:
       pip install --upgrade pip setuptools wheel
       pip install -e ".[dev]"
     Never use "pip install -r requirements.txt" as the sole install step.</constraint>
-
-    <constraint>Makefile must never reference playwright. The acquire stage uses
-    requests and BeautifulSoup only.</constraint>
-
+    <constraint>The acquire stage uses requests and BeautifulSoup if HTTP download or
+    HTML parsing is required. Do not use Playwright or any browser automation for
+    data acquisition.</constraint>
     <constraint>pyproject.toml dev dependencies must include pandas-stubs and
     types-requests. Without these, mypy type checks fail on every run.</constraint>
   </build-env>
@@ -187,13 +152,13 @@ description: Use after the data-pipeline-designer has decomposed each component 
     map_partitions operations. Never operate on more than 50 partitions —
     performance degrades severely above this threshold on single-machine
     deployments.</constraint>
-   <constraint>Never write more than 200 Parquet files per stage output. Target
-	20-50 output files for the full dataset. Repartition before writing if the
-	natural partition count exceeds this. When using partition_on with a high
-	cardinality column (e.g. a unique entity identifier), always repartition to
-	a reasonable number of partitions first — partitioning on a column with
-	thousands of unique values produces one file per value, which is unusable
-	for downstream ML workflows.</constraint>
+    <constraint>Never write more than 200 Parquet files per stage output. Target
+    20-50 output files for the full dataset. Repartition before writing if the
+    natural partition count exceeds this. When using partition_on with a high
+    cardinality column (e.g. a unique entity identifier), always repartition to
+    a reasonable number of partitions first — partitioning on a column with
+    thousands of unique values produces one file per value, which is unusable
+    for downstream ML workflows.</constraint>
     <constraint>Row filtering using string operations must be done inside a
     map_partitions function, not directly on a Dask Series. Dask's .str accessor
     is unreliable on Series produced by repartition or astype operations. Use:
@@ -204,23 +169,14 @@ description: Use after the data-pipeline-designer has decomposed each component 
     </constraint>
   </dask-parquet>
 
-  <data-filtering>
-    <constraint>The ingest stage must filter rows to the target date range
-    (year >= 2024) after reading raw files. Raw lease files downloaded from KGS
-    contain full production history going back to the 1960s regardless of the
-    acquire filter. Extract year from MONTH-YEAR column (format "M-YYYY", split
-    on "-", take last element). Drop rows where year &lt; 2024 and rows where
-    the year component is not numeric (e.g. "-1-1965", "0-1966").</constraint>
-  </data-filtering>
-
   <ingest>
     <constraint>Ingest must write a small number of consolidated interim Parquet
-	files — target npartitions = max(1, total_rows // 500_000) to keep file count
-	low while avoiding excessively large single files. Never write one file per
-	source entity (e.g. one file per lease, one file per well) — this produces
-	tens of thousands of tiny files that cause severe downstream performance
-	degradation in transform and features. Always repartition before writing:
-	ddf.repartition(npartitions=N).to_parquet(...)</constraint>
+    files — target npartitions = max(1, total_rows // 500_000) to keep file count
+    low while avoiding excessively large single files. Never write one file per
+    source entity (e.g. one file per lease, one file per well) — this produces
+    tens of thousands of tiny files that cause severe downstream performance
+    degradation in transform and features. Always repartition before writing:
+    ddf.repartition(npartitions=N).to_parquet(...)</constraint>
   </ingest>
 </non-negotiable>
 
@@ -230,7 +186,6 @@ description: Use after the data-pipeline-designer has decomposed each component 
 	<constraint>Use Dask</constraint>
 	<constraint>Use Parquet for processed/output data files</constraint>
 	<constraint>Use pytest for test-cases</constraint>
-	<constraint>Use requests and BeautifulSoup for HTTP download and HTML parsing</constraint>
 	<constraint>The output files TaskIndex.md and tasks/componentname_tasks.md must not contain
 	any code.</constraint>
 	<constraint>Write output only to the tasks/ folder and TaskIndex.md. Do not write to, modify,
@@ -247,21 +202,22 @@ description: Use after the data-pipeline-designer has decomposed each component 
 	<constraint>For every task in every component's task spec, the Definition of Done must
 	explicitly include: "requirements.txt updated with all third-party packages imported in
 	this task."</constraint>
-	<constraint>After all task files and TaskIndex.md are successfully written, 
+	<constraint>After all task files and TaskIndex.md are successfully written,
     call `stage_and_check_git` to execute `git add {specific-files changed}`.
     Add all files changed in the run at one go.
-    eg. the call will look like 
+    eg. the call will look like
     stage_and_check_git("git add TaskIndex.md tasks/acquire_tasks.md tasks/ingest_tasks.md tasks/transform_tasks.md tasks/features_tasks.md")
     </constraint>
-	<constraint>After all task files and TaskIndex.md are successfully written and call to `stage_and_check_git` returns, 
+	<constraint>After all task files and TaskIndex.md are successfully written and call to `stage_and_check_git` returns,
     return a concise completion summary: list the files written, status of `stage_and_check_git` tool call and confirm completion. Do not describe file contents in your response.</constraint>
-	<constraint>The `data/` folder must be added to .gitignore</constraint>
+	<constraint>The `data/`, `large_tool_results/`, `conversation_history/` folders must be added to .gitignore</constraint>
 </constraints>
+
 ## Response Format
 
 Return only a concise summary of what was done. Do not include:
 - Raw file contents
-- Tool call outputs  
+- Tool call outputs
 - Intermediate results
 - Full code listings
 
@@ -278,24 +234,18 @@ Keep your response under 200 words.
 │   ├── transform_tasks.md
 │   └── features_tasks.md
 ├── data/
-│   ├── external/
-│   |	|── oil_leases_2020_present.txt
-|	|
+│   ├── external/          <- source index / reference data files
 │   ├── interim/
 │   ├── processed/
 │   └── raw/
-├── references/
-│   ├── kgs_archives_data_dictionary.csv
-│   └── kgs_monthly_data_dictionary.csv
-├── requirements.txt
+├── references/            <- data dictionaries and static reference docs
 ├── tests/
 │   ├── test_acquire.py
 │   ├── test_ingest.py
 │   ├── test_transform.py
 │   └── test_features.py
-└── kgs_pipeline/
+└── {project}_pipeline/
     ├── __init__.py
-    ├── config.py
     ├── acquire.py
     ├── ingest.py
     ├── transform.py

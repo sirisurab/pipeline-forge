@@ -43,7 +43,7 @@ After applying all fixes in the run are complete,
 - call `stage_and_check_git` to execute `git add {specific-files changed}`.
   Add all files changed in the run at one go.
   eg. the call will look like 
-  stage_and_check_git("git add kgs_pipeline/ingest.py")
+  stage_and_check_git("git add {project}_pipeline/ingest.py")
 return to orchestrator agent, 
 - List of files modified
 - One-line description of each fix applied

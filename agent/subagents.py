@@ -1,13 +1,12 @@
 from pathlib import Path
 from agent.tools import stage_and_check_git
 from agent.middleware import task_writer_limit_mw, coder_limit_mw, retry_mw
-from agent.config import task_writer_model, coder_advanced_model, coder_basic_model
+from agent.config import task_writer_model, coder_advanced_model, coder_basic_model, project as _project
 from langchain_anthropic import ChatAnthropic
 
-
-task_writer_prompt = Path("task-writer.md").read_text()
-coder_advanced_prompt = Path("coder-advanced.md").read_text()
-coder_basic_prompt = Path("coder-basic.md").read_text()
+task_writer_prompt = Path("task-writer.md").read_text().replace("{project}", _project)
+coder_advanced_prompt = Path("coder-advanced.md").read_text().replace("{project}", _project)
+coder_basic_prompt = Path("coder-basic.md").read_text().replace("{project}", _project)
 
 # task-writer
 task_writer = {
