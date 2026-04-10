@@ -1,5 +1,5 @@
 # pipeline-forge
-## Agentic system that generates tested, production-ready O&G data pipelines from a plain-English spec.
+** Agentic system that generates tested, production-ready O&G data pipelines from a plain-English spec.**
 
 Tested on two oil and gas production datasets — Kansas Geological Survey and Colorado ECMC — different data sources, same agent, same quality bar.
 
