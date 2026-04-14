@@ -18,7 +18,7 @@ task_writer = {
     """),
     "system_prompt": task_writer_prompt,
     "tools": [stage_and_check_git],
-    "model": ChatAnthropic(model=task_writer_model),
+    "model": ChatAnthropic(model=task_writer_model, timeout=300),
     "middleware" : [task_writer_limit_mw, retry_mw]
 }
 
@@ -32,7 +32,7 @@ coder_advanced = {
     """),
     "system_prompt": coder_advanced_prompt,
     "tools": [stage_and_check_git],
-    "model": ChatAnthropic(model=coder_advanced_model),
+    "model": ChatAnthropic(model=coder_advanced_model, timeout=300),
     "middleware" : [coder_limit_mw, retry_mw]
 }
 
@@ -46,6 +46,6 @@ coder_basic = {
     """),
     "system_prompt": coder_basic_prompt,
     "tools": [stage_and_check_git],
-    "model": ChatAnthropic(model=coder_basic_model),
+    "model": ChatAnthropic(model=coder_basic_model, timeout=300),
     "middleware" : [coder_limit_mw, retry_mw]
 }

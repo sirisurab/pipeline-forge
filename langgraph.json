@@ -4,5 +4,5 @@
     "agent": "./deepagent.py:graph"
   },
   "env": ".env",
-  "node_timeout": 600
+  "node_timeout": 1200
 }

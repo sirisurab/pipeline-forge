@@ -18,6 +18,7 @@ rm -f .mypy.ini
 rm -f setup.cfg
 rm -f pyproject.toml
 rm -f .gitignore
+rm -f config.yaml
 
 # Deepagents runtime artifacts
 rm -rf large_tool_results/
@@ -33,3 +34,6 @@ rm -rf data/raw/* data/interim/* data/processed/*
 
 # Editable install metadata
 rm -rf "${project}_pipeline.egg-info"
+
+# Project-specific config folder
+rm -rf config/

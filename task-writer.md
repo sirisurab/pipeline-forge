@@ -140,21 +140,142 @@ description: Use after the data-pipeline-designer has decomposed each component 
     data acquisition.</constraint>
     <constraint>pyproject.toml dev dependencies must include pandas-stubs and
     types-requests. Without these, mypy type checks fail on every run.</constraint>
+    <constraint>Makefile must include a `pipeline` target that runs all stages
+    end-to-end in order: acquire → ingest → transform → features. Each stage
+    target must be defined independently and pipeline must depend on them in
+    sequence:
+
+      pipeline: acquire ingest transform features
+
+    Individual stage targets must also be runnable independently:
+      make acquire
+      make ingest
+      make transform
+      make features
+      make pipeline
+    </constraint>
+    <constraint>All configurable values (paths, URLs, year ranges, worker counts,
+    Dask settings, logging settings) must be read from config.yaml. Never hardcode
+    configurable values in pipeline code or read them directly from environment
+    variables. config.yaml must have the following top-level sections: acquire,
+    ingest, transform, features, dask, logging. Each section must contain all
+    settings relevant to that stage or component. The dask section must include:
+      dask:
+        scheduler: local        # "local" for LocalCluster, or "tcp://host:port" for remote
+        n_workers: 2
+        threads_per_worker: 2
+        memory_limit: "3GB"
+        dashboard_port: 8787
+    The logging section must include:
+      logging:
+        log_file: "logs/pipeline.log"
+        level: "INFO"
+    </constraint>
+    <constraint>The pipeline package must include a pipeline.py module with a
+    run_pipeline(stages: list[str] | None = None) function that chains all four
+    stages in order: acquire → ingest → transform → features. stages defaults to
+    all four when None. The orchestrator must:
+    - read all settings from config.yaml
+    - set up logging to both stdout and logs/pipeline.log
+    - run each stage in order with per-stage timing and error logging
+    - raise RuntimeError on stage failure preventing downstream stages from running
+    A CLI entry point (main()) must be registered in pyproject.toml so the pipeline
+    is runnable as a command. The make pipeline target must invoke this CLI entry point.
+    </constraint>
+    <constraint>Dask scheduler usage differs by stage:
+
+    The acquire stage must use the default Dask threaded scheduler for all download
+    tasks. Pass scheduler="threads" and num_workers=config["acquire"]["max_workers"]
+    directly to dask.compute(). Do not initialize or use a distributed Client in the
+    acquire stage.
+
+    The ingest, transform, and features stages must use the Dask distributed scheduler.
+    Each of these stages' run_*() function must check for an existing distributed Client
+    and reuse it if present, or initialize its own LocalCluster and Client if not. Use
+    distributed.get_client() to check; catch ValueError to detect no running client.
+
+    The pipeline orchestrator (pipeline.py) must initialize the distributed Client
+    after the acquire stage completes and before ingest begins. Use settings from the
+    dask section of config.yaml: if dask.scheduler == "local", create a LocalCluster
+    with n_workers, threads_per_worker, and memory_limit from config; if dask.scheduler
+    is a URL (e.g. "tcp://host:port"), connect to the remote scheduler. Log the
+    dashboard URL after initialization. This ensures the dashboard is available for
+    ingest, transform, and features whether running make pipeline or any individual
+    stage target.
+
+    dask.distributed and bokeh must be listed as runtime dependencies in pyproject.toml
+    (not dev dependencies) — they are required for the Dask dashboard at runtime.
+    </constraint>
   </build-env>
 
+  <dtypes>
+    <constraint>Column dtypes must be derived from the project data dictionary CSV
+    (refer to the data-dictionary files mentioned in task-writer-{project}.md).
+    The data dictionary defines dtype (int, float, string, categorical, datetime,
+    bool) and nullable (yes/no) for every column. Map to pandas types as follows:
+
+      Data Dict dtype | nullable=no                                         | nullable=yes
+      ----------------|-----------------------------------------------------|-------------
+      int             | int64                                               | pd.Int64Dtype()
+      float           | float64                                             | pd.Float64Dtype()
+      string          | pd.StringDtype()                                    | pd.StringDtype()
+      categorical     | pd.CategoricalDtype(categories=[...], ordered=False) | pd.CategoricalDtype(categories=[...], ordered=False)
+      bool            | bool                                                | pd.BooleanDtype()
+      datetime        | datetime64[ns]                                      | datetime64[ns]
+
+    Note: pd.StringDtype() is used for both nullable and non-nullable string
+    columns — it supports pd.NA as null sentinel and is safe for Parquet writing.
+    Never use "object" dtype for strings anywhere in the pipeline.
+    datetime64[ns] uses NaT as its null sentinel — the same pandas type applies
+    regardless of nullable=yes/no.
+    pd.CategoricalDtype supports pd.NA natively — the same type applies regardless
+    of nullable=yes/no. Category values are pipe-separated in the data dictionary
+    categories column.
+    </constraint>
+
+    <constraint>Cast to data-dictionary dtypes at read time, inside the file reader
+    function (e.g. read_raw_file), immediately after pd.read_csv. Pass a
+    column→dtype dict derived from the data dictionary to pd.read_csv's dtype=
+    argument. Handle datetime columns via parse_dates=. Do not rely on pandas
+    inference — inference produces int64/object/float64 regardless of the intended
+    schema and will cause a metadata mismatch when Dask validates partitions against
+    meta at compute time.
+    </constraint>
+
+    <constraint>Nullable columns (nullable=yes in the data dictionary) that are absent
+    from a source file must be added as all-NA columns at the correct dtype — their
+    absence is not an error. Only non-nullable columns (nullable=no) should cause an
+    error if missing.
+    </constraint>
+
+    <constraint>After reading a source file, normalize column names to the canonical
+    schema using case-insensitive matching before any validation or dtype enforcement.
+    If a column in the file matches a canonical column name case-insensitively, rename
+    it to the canonical name. Columns that do not match any canonical name after
+    normalization must be dropped with a WARNING log — do not pass non-canonical columns
+    downstream. This handles common source data issues such as inconsistent casing
+    across annual files without requiring hardcoded alias maps.
+    </constraint>
+
+    <constraint>The meta= argument in dd.from_delayed and map_partitions must match
+    the function output in column names, column order, and dtypes — all three are
+    validated by Dask at compute time and any mismatch raises a metadata mismatch
+    error. The safest way to build meta for a function that adds new columns is to
+    call the function on ddf._meta.copy() (an empty DataFrame with the correct
+    schema) and use the result as meta directly. This provides a single source of
+    truth — the function itself — rather than manually replicating its output column
+    order in a separate loop, which will diverge whenever the function changes.
+    </constraint>
+  </dtypes>
+
   <dask-parquet>
-    <constraint>All map_partitions meta DataFrames must use pd.StringDtype() for
-    string columns. Never use "object" as a dtype value in any meta= argument.
-    Using "object" dtype causes pyarrow.lib.ArrowInvalid errors when writing
-    Parquet.</constraint>
-    <constraint>After reading any Parquet dataset, immediately repartition to
-    min(npartitions, 50) before running any transformation, groupby, or
-    map_partitions operations. Never operate on more than 50 partitions —
-    performance degrades severely above this threshold on single-machine
-    deployments.</constraint>
-    <constraint>Never write more than 200 Parquet files per stage output. Target
-    20-50 output files for the full dataset. Repartition before writing if the
-    natural partition count exceeds this. When using partition_on with a high
+    <constraint>Before writing any Parquet output, repartition to
+    max(10, min(ddf.npartitions, 50)) partitions. This ensures the next stage
+    always receives a well-partitioned input — at least 10 partitions to distribute
+    work across workers, capped at 50 to avoid per-partition overhead on
+    single-machine deployments. Apply this repartition as the last step before
+    to_parquet() in every stage (ingest, transform, features). Never write more
+    than 50 Parquet files per stage output. When using partition_on with a high
     cardinality column (e.g. a unique entity identifier), always repartition to
     a reasonable number of partitions first — partitioning on a column with
     thousands of unique values produces one file per value, which is unusable
@@ -169,14 +290,93 @@ description: Use after the data-pipeline-designer has decomposed each component 
     </constraint>
   </dask-parquet>
 
+  <vectorization>
+    <constraint>All data transformation logic inside map_partitions functions must
+    use vectorized pandas/numpy operations. Follow this order of preference:
+
+    1. Built-in pandas/numpy methods — always prefer these:
+         df['a'] + df['b']             over  [x + y for x, y in zip(df['a'], df['b'])]
+         np.where(cond, x, y)          over  apply(lambda row: x if cond else y)
+         df.groupby().transform()      over  for group in df.groupby(): ...
+         df['col'].cumsum()            over  running total in a loop
+         df.rolling().mean()           over  manual window loop
+         np.select(conditions, choices) over  multiple if-elif in a loop
+
+    2. groupby().transform() for all per-entity (per-well, per-lease) operations —
+       cumulative sums, rolling windows, lag features, decline rates. Never use a
+       Python for loop over groupby groups. A loop over groups scales with the number
+       of unique entities per partition and becomes prohibitively slow at production
+       data volumes (millions of rows, thousands of entities).
+
+    3. apply(raw=True) — only when no vectorized alternative exists. Passing raw=True
+       delivers a NumPy array instead of a Series, reducing overhead.
+
+    4. apply() / map() — only when raw=True is not applicable.
+
+    5. Never use iterrows() or itertuples(). Never use Python for loops over rows.
+    </constraint>
+  </vectorization>
+
+  <transform>
+    <constraint>The final steps of the transform stage, before writing Parquet output,
+    must follow this exact sequence: (1) call set_index() on the well/lease entity
+    identifier column (refer to the data dictionary for the exact column name — e.g.
+    well_id for COGCC, LEASE_KID for KGS). set_index triggers a distributed shuffle
+    and is expensive — call it exactly once, at the end of the transform chain. (2)
+    repartition using the formula specified in the dask-parquet constraint. (3) sort within each partition by the
+    production date column. This sort must happen after set_index and repartition —
+    not before — because the shuffle in set_index destroys any prior row ordering.
+    Correct temporal ordering within each entity group is required for downstream
+    cumulative sums, rolling windows, and lag features to be accurate.
+    </constraint>
+
+    <constraint>Columns with dtype=categorical in the data dictionary must be cast
+    to pd.CategoricalDtype(categories=[...], ordered=False) in the transform stage,
+    after cleaning and validity filtering. The allowed category values are specified
+    in the categories column of the data dictionary (pipe-separated). Never cast
+    to categorical before cleaning — raw data may contain values outside the known
+    category set. If a value is not in the declared
+    category list, replace it with pd.NA before casting — never allow unknown
+    categories to propagate silently. Categorical columns must be read as
+    pd.StringDtype() in the reader function, then cast to pd.CategoricalDtype()
+    in transform after cleaning.
+    </constraint>
+  </transform>
+
+  <logging>
+    <constraint>All pipeline stages must write logs to both stdout and
+    ./logs/pipeline.log simultaneously, using a StreamHandler for stdout and a
+    FileHandler for the log file. The logs/ directory must be created at pipeline
+    startup if it does not exist. logs/ must be added to .gitignore.
+    </constraint>
+  </logging>
+
+  <compute>
+    <constraint>Never call .compute() sequentially on independent results. If multiple
+    .compute() calls are required in the same stage, batch them using dask.compute():
+
+      # Anti-pattern — replays full task graph once per call:
+      result1 = ddf[cols1].compute()
+      result2 = ddf[cols2].compute()
+
+      # Correct — shared sub-graph executed once, results parallelized:
+      result1, result2 = dask.compute(ddf[cols1], ddf[cols2])
+
+    </constraint>
+
+    <constraint>Never call ddf.shape[0].compute() to estimate row count for
+    npartitions calculation. Use a fixed formula based on partition count instead:
+      npartitions = max(1, ddf.npartitions // 10)
+    Calling shape[0].compute() triggers a full graph execution just to count rows.
+    </constraint>
+  </compute>
+
   <ingest>
-    <constraint>Ingest must write a small number of consolidated interim Parquet
-    files — target npartitions = max(1, total_rows // 500_000) to keep file count
-    low while avoiding excessively large single files. Never write one file per
-    source entity (e.g. one file per lease, one file per well) — this produces
-    tens of thousands of tiny files that cause severe downstream performance
-    degradation in transform and features. Always repartition before writing:
-    ddf.repartition(npartitions=N).to_parquet(...)</constraint>
+    <constraint>Ingest must write consolidated interim Parquet files. Never write
+    one file per source entity (e.g. one file per lease, one file per well) — this
+    produces tens of thousands of tiny files that cause severe downstream performance
+    degradation in transform and features. Apply the dask-parquet repartition
+    constraint before writing.</constraint>
   </ingest>
 </non-negotiable>
 

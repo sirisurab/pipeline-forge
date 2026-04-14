@@ -15,6 +15,7 @@ dependencies:
   - ruff
   - pytest
   - openai
+  - google-api-core
   - pip
   - pip:
     - deepagents
