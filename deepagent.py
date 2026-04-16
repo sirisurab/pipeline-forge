@@ -18,7 +18,7 @@ def main(args):
     result = graph.invoke({"messages":[{"role":"user", "content": user_prompt}]}, config)
     print(result)
 
-_backend = FilesystemBackend(root_dir=repo_root, virtual_mode=True)
+_backend = FilesystemBackend(root_dir=repo_root, virtual_mode=False)
 _checkpointer = MemorySaver()
 
 _orchestrator_prompt = Path("orchestrator.md").read_text()

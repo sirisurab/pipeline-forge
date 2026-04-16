@@ -68,17 +68,45 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
 	</task-detail>
 </task-spec-example>
 
+<pre-flight>
+
+### Read Before Implementing Any Task
+
+**Step 1 — Task index:**
+Read `TaskIndex.md` to get the exact filenames of all task spec files. Use those exact
+filenames verbatim when reading task specs.
+
+**Step 2 — Agent docs:**
+Identify the current stage from the task spec filename
+(`acquire_tasks.md` → acquire, `ingest_tasks.md` → ingest, etc.) and read the relevant
+files from `../agent_docs/` before implementing any task in that stage:
+
+Always read:
+- `../agent_docs/ADRs.md`
+
+Read when implementing build, environment, configuration, or pipeline orchestration
+artifacts (pyproject.toml, Makefile, config.yaml, pipeline.py):
+- `../agent_docs/build-env-manifest.md`
+
+Then read the stage-specific files for the stage you are implementing:
+
+| Stage | Stage manifest | Boundary files |
+|---|---|---|
+| acquire | `../agent_docs/stage-manifest-acquire.md` | none |
+| ingest | `../agent_docs/stage-manifest-ingest.md` | `../agent_docs/boundary-ingest-transform.md` |
+| transform | `../agent_docs/stage-manifest-transform.md` | `../agent_docs/boundary-ingest-transform.md` + `../agent_docs/boundary-transform-features.md` |
+| features | `../agent_docs/stage-manifest-features.md` | `../agent_docs/boundary-transform-features.md` |
+
+Do not implement any task in a stage until all its relevant agent_docs files have been read.
+
+</pre-flight>
+
 <constraints>
 	<constraint>Read TaskIndex.md first to get the exact filenames of all task spec files.
 	Use those exact filenames verbatim. If a file is not found, re-read TaskIndex.md before
 	retrying. Do not reconstruct or guess filenames.</constraint>
 	<constraint>For each component, implement tasks one at a time in the order specified.
 	Do not move to the next task until the current task's definition of done is met.</constraint>
-	<constraint>Use Python 3.11+</constraint>
-	<constraint>Use Pandas</constraint>
-	<constraint>Use Dask</constraint>
-	<constraint>Use Parquet for processed/output data files</constraint>
-	<constraint>Use pytest for test-cases</constraint>
 	<constraint>Do not include excessive code comments. Write concise, useful comments and
 	docstrings.</constraint>
 	<constraint>If a task cannot be implemented as specified, write a comment block in the
