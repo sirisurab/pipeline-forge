@@ -123,20 +123,20 @@ authoritative source for all test case requirements. Do not write any task spec 
 this file has been read.
 
 **Step 3 — Agent docs:**
-Before writing task specs for each stage, read the relevant files from `../agent_docs/`:
+Before writing task specs for each stage, read the relevant files from `/agent_docs/`:
 
 Always read:
-- `../agent_docs/ADRs.md`
-- `../agent_docs/build-env-manifest.md`
+- `/agent_docs/ADRs.md`
+- `/agent_docs/build-env-manifest.md`
 
 Then read the stage-specific files for each stage you are writing specs for:
 
 | Stage | Stage manifest | Boundary files |
 |---|---|---|
-| acquire | `../agent_docs/stage-manifest-acquire.md` | none |
-| ingest | `../agent_docs/stage-manifest-ingest.md` | `../agent_docs/boundary-ingest-transform.md` |
-| transform | `../agent_docs/stage-manifest-transform.md` | `../agent_docs/boundary-ingest-transform.md` + `../agent_docs/boundary-transform-features.md` |
-| features | `../agent_docs/stage-manifest-features.md` | `../agent_docs/boundary-transform-features.md` |
+| acquire | `/agent_docs/stage-manifest-acquire.md` | none |
+| ingest | `/agent_docs/stage-manifest-ingest.md` | `/agent_docs/boundary-ingest-transform.md` |
+| transform | `/agent_docs/stage-manifest-transform.md` | `/agent_docs/boundary-ingest-transform.md` + `/agent_docs/boundary-transform-features.md` |
+| features | `/agent_docs/stage-manifest-features.md` | `/agent_docs/boundary-transform-features.md` |
 
 Do not write task specs for a stage until all its relevant agent_docs files have been read.
 
@@ -147,7 +147,10 @@ Do not write task specs for a stage until all its relevant agent_docs files have
 
 ## Output File Constraints
 
-- The output files `TaskIndex.md` and `tasks/componentname_tasks.md` must not contain any code.
+- The output files `TaskIndex.md` and `tasks/componentname_tasks.md` must not
+  contain executable code — no Python functions, no class definitions, no test
+  implementations, no runnable scripts. Task specs describe intent and structure,
+  not implementation.
 - Write output only to the `tasks/` folder and `TaskIndex.md`. Do not write to, modify,
   or delete any other files.
 - Write the component task files first in pipeline order:
@@ -155,6 +158,17 @@ Do not write task specs for a stage until all its relevant agent_docs files have
   `tasks/features_tasks.md`. Write `TaskIndex.md` last. `TaskIndex.md` must list the exact
   filenames as written — copy them verbatim. Do not reconstruct filenames from memory or
   description.
+- Each requirement in a task spec must appear exactly once. If a requirement
+  needs more clarity, rewrite it with greater precision — do not restate it
+  in a different form. Repetition of the same requirement in different forms
+  creates contradictory specs that the coder cannot resolve without guessing.
+- Task specifications must use pseudo-code to describe implementation intent — not exact
+  command strings, not executable code, and not prose where pseudo-code is clearer.
+  Pseudo-code describes what a target or function must do without prescribing exact syntax.
+  Example — instead of: "`pipeline` — run `cogcc-pipeline --stages acquire ingest transform features`; must depend on individual stage targets"
+  Write: "`pipeline` — invoke the pipeline entry point for all stages in sequence"
+  Mixing exact command strings with prose dependency requirements produces contradictory
+  specs that the coder cannot resolve without guessing.
 
 ## Definition of Done Constraint
 
@@ -180,7 +194,7 @@ After all task files and `TaskIndex.md` are successfully written:
 <non-negotiable>
 These constraints are non-negotiable and must be applied in every run without exception.
 Architectural decisions, stage requirements, and cross-stage contracts are documented
-in `../agent_docs/` — read the relevant files before writing task specs.
+in `/agent_docs/` — read the relevant files before writing task specs.
 
 </non-negotiable>
 

@@ -79,23 +79,23 @@ filenames verbatim when reading task specs.
 **Step 2 — Agent docs:**
 Identify the current stage from the task spec filename
 (`acquire_tasks.md` → acquire, `ingest_tasks.md` → ingest, etc.) and read the relevant
-files from `../agent_docs/` before implementing any task in that stage:
+files from `/agent_docs/` before implementing any task in that stage:
 
 Always read:
-- `../agent_docs/ADRs.md`
+- `/agent_docs/ADRs.md`
 
 Read when implementing build, environment, configuration, or pipeline orchestration
 artifacts (pyproject.toml, Makefile, config.yaml, pipeline.py):
-- `../agent_docs/build-env-manifest.md`
+- `/agent_docs/build-env-manifest.md`
 
 Then read the stage-specific files for the stage you are implementing:
 
 | Stage | Stage manifest | Boundary files |
 |---|---|---|
-| acquire | `../agent_docs/stage-manifest-acquire.md` | none |
-| ingest | `../agent_docs/stage-manifest-ingest.md` | `../agent_docs/boundary-ingest-transform.md` |
-| transform | `../agent_docs/stage-manifest-transform.md` | `../agent_docs/boundary-ingest-transform.md` + `../agent_docs/boundary-transform-features.md` |
-| features | `../agent_docs/stage-manifest-features.md` | `../agent_docs/boundary-transform-features.md` |
+| acquire | `/agent_docs/stage-manifest-acquire.md` | none |
+| ingest | `/agent_docs/stage-manifest-ingest.md` | `/agent_docs/boundary-ingest-transform.md` |
+| transform | `/agent_docs/stage-manifest-transform.md` | `/agent_docs/boundary-ingest-transform.md` + `/agent_docs/boundary-transform-features.md` |
+| features | `/agent_docs/stage-manifest-features.md` | `/agent_docs/boundary-transform-features.md` |
 
 Do not implement any task in a stage until all its relevant agent_docs files have been read.
 

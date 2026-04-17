@@ -86,13 +86,14 @@ schema information is inferred from the data itself.
 → Categorical allowed values are defined in the data dictionary — values outside
   the declared set must be replaced with the appropriate null sentinel before
   casting, never allowed to propagate silently.
-→ meta= arguments in Dask operations must be derived from the function's output
-  on an empty DataFrame — not manually constructed from the data dictionary, which
-  would create a second source of truth that diverges when the function changes.
+→ Meta derivation and function execution must share the same code path — for
+  example, meta can be derived by calling the actual function on a minimal real
+  input and slicing to zero rows. Any construction of meta that is separate from
+  calling the actual function is prohibited, whether derived from the data
+  dictionary, inferred from function logic, or extracted into a helper function.
 → Dask metadata must accurately reflect the actual output schema in column
   names, column order, and dtypes — a mismatch causes silent wrong results or
-  runtime errors at compute time. Derive metadata by calling the function on
-  an empty DataFrame with the correct schema, not by manual construction.
+  runtime errors at compute time.
 
 ---
 

@@ -32,14 +32,17 @@ The Makefile must expose individual stage targets and a full pipeline target:
 - Individual stages must be runnable independently
 - The full pipeline target must run all stages in order:
   acquire → ingest → transform → features
-- The full pipeline target must depend on individual stage targets in sequence
+- The full pipeline target must use exactly one invocation approach —
+  either invoke the pipeline entry point once for all stages, or chain
+  stage targets as dependencies with no recipe body. Never combine both:
+  a pipeline target that both chains stage targets as dependencies AND
+  invokes the entry point in the recipe body will run every stage twice.
 
 ## Pipeline entry point
 
 The pipeline package must expose a command-line entry point registered in the
 package configuration. The entry point must accept an optional list of stages
-to run — defaulting to all four when not specified. The Makefile pipeline target
-must invoke this entry point.
+to run — defaulting to all four when not specified.
 
 The entry point must:
 - Read all settings from config.yaml

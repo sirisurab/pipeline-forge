@@ -1,5 +1,5 @@
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import FilesystemBackend, CompositeBackend
 from agent.subagents import task_writer, coder_advanced, coder_basic
 from langgraph.checkpoint.memory import MemorySaver
 from agent.evaluator import run_evaluator
@@ -18,7 +18,13 @@ def main(args):
     result = graph.invoke({"messages":[{"role":"user", "content": user_prompt}]}, config)
     print(result)
 
-_backend = FilesystemBackend(root_dir=repo_root, virtual_mode=True)
+#_backend = FilesystemBackend(root_dir=repo_root, virtual_mode=True)
+_backend = CompositeBackend(
+    default=FilesystemBackend(root_dir=repo_root, virtual_mode=True),
+    routes={
+        "/agent_docs/": FilesystemBackend(root_dir=str(Path(repo_root).parent / "agent_docs"), virtual_mode=True)
+    }
+)
 _checkpointer = MemorySaver()
 
 _orchestrator_prompt = Path("orchestrator.md").read_text()
