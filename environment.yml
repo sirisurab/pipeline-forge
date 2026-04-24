@@ -19,5 +19,5 @@ dependencies:
   - pip
   - pip:
     - deepagents
-    - langgraph-api
+    - langgraph-api>=0.8.0
     - deepeval

@@ -99,6 +99,20 @@ Then read the stage-specific files for the stage you are implementing:
 
 Do not implement any task in a stage until all its relevant agent_docs files have been read.
 
+**Step 3 — Coding patterns:**
+Read `/agent_docs/coding-patterns.md` before implementing any task. It contains cross-cutting
+implementation guidance that applies to all stages.
+
+**Step 4 — Active referencing during implementation:**
+
+Reading agent docs once before starting is not sufficient. The agent docs must be actively re-consulted during implementation whenever the task spec is silent, ambiguous, or makes a claim that needs verification against the authoritative source. Two specific triggers:
+
+1. **Data state claim** — before writing any code that assumes what columns are present, what the index is, or what the schema or data shape looks like at a stage boundary, re-read the relevant boundary contract. If the task spec enumerates column names or index state, verify them against the boundary contract before implementing. The boundary contract takes precedence over the task spec.
+
+2. **Mechanism claim** — before implementing any parallelization approach, meta derivation, operation ordering, scheduler choice, partition count, or build configuration, re-read the relevant ADR, stage manifest, or build-env-manifest. If the doc defines the pattern, follow the doc — not the task spec, even if the task spec is more specific.
+
+A task spec that contradicts an ADR or stage manifest is an error in the task spec. Follow the ADR or stage manifest and note the conflict with a `# CONFLICT:` comment.
+
 </pre-flight>
 
 <constraints>
@@ -157,7 +171,8 @@ Keep your response under 200 words.
 │   ├── test_acquire.py
 │   ├── test_ingest.py
 │   ├── test_transform.py
-│   └── test_features.py
+│   ├── test_features.py
+│   └── test_pipeline.py
 └── {project}_pipeline/
     ├── __init__.py
     ├── config.py

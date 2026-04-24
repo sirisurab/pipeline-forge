@@ -37,3 +37,6 @@ casting, not after.
 
 **H3:** Partition count at stage exit must equal the value mentioned in output state —
 no operation after repartition may alter partition structure.
+
+**H4:** `set_index` must be the last structural operation before writing — all
+operations that reference the entity column must complete before `set_index` is called.

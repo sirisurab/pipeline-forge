@@ -67,13 +67,16 @@ one-line description and the filename of each component's tasks specification fi
 - tasks/ingest_tasks.md      <- all ingest tasks
 - tasks/transform_tasks.md   <- all transform tasks
 - tasks/features_tasks.md    <- all features tasks
+- tasks/pipeline_tasks.md    <- pipeline orchestration, logging, entry point
 ```
 
 **`tasks/componentname_tasks.md`** — One file per pipeline component under the tasks/
 directory. Each component task file must contain all tasks for that component in sequential
-order, fully self-contained. It must include all the tasks, relevant design
-decisions/constraints and test cases the coder needs to implement that one component
-without referencing any other document.
+order. It must include all the tasks and test cases the coder needs to implement that one
+component. For design decisions and constraints, reference the applicable decision /
+constraint from ADRs, stage manifests, boundary specs, or build-env-manifest by name —
+do not restate or elaborate them. Restating a constraint from an authoritative doc creates
+a second source of truth that will diverge and contradict the original.
 
 </signature>
 
@@ -140,6 +143,16 @@ Then read the stage-specific files for each stage you are writing specs for:
 
 Do not write task specs for a stage until all its relevant agent_docs files have been read.
 
+**Step 4 — Active referencing during task writing:**
+
+Reading agent docs once before starting is not sufficient. The agent docs must be actively re-consulted during task writing whenever a task makes a claim in either of these two categories:
+
+1. **Data state claim** — any statement about what columns are present, what the index is, what the schema or data shape looks like at any point in a task. Before writing such a claim, re-read the relevant boundary contract. Do not enumerate column lists or index state from reasoning — derive them from the boundary contract and cite it by name.
+
+2. **Mechanism claim** — any statement about how something should be implemented: parallelization approach, meta derivation, operation ordering, scheduler choice, partition count, or build configuration. Before writing such a claim, re-read the relevant ADR, stage manifest, or build-env-manifest. If the doc defines the pattern, reference it by name — do not restate or elaborate it in the task spec.
+
+A task spec that makes a claim without citing the authoritative doc is a task spec that is reasoning from assumptions. Assumptions diverge from what upstream stages actually produce.
+
 </pre-flight>
 
 
@@ -155,20 +168,48 @@ Do not write task specs for a stage until all its relevant agent_docs files have
   or delete any other files.
 - Write the component task files first in pipeline order:
   `tasks/acquire_tasks.md` → `tasks/ingest_tasks.md` → `tasks/transform_tasks.md` →
-  `tasks/features_tasks.md`. Write `TaskIndex.md` last. `TaskIndex.md` must list the exact
-  filenames as written — copy them verbatim. Do not reconstruct filenames from memory or
-  description.
-- Each requirement in a task spec must appear exactly once. If a requirement
-  needs more clarity, rewrite it with greater precision — do not restate it
-  in a different form. Repetition of the same requirement in different forms
-  creates contradictory specs that the coder cannot resolve without guessing.
-- Task specifications must use pseudo-code to describe implementation intent — not exact
-  command strings, not executable code, and not prose where pseudo-code is clearer.
-  Pseudo-code describes what a target or function must do without prescribing exact syntax.
-  Example — instead of: "`pipeline` — run `cogcc-pipeline --stages acquire ingest transform features`; must depend on individual stage targets"
-  Write: "`pipeline` — invoke the pipeline entry point for all stages in sequence"
-  Mixing exact command strings with prose dependency requirements produces contradictory
-  specs that the coder cannot resolve without guessing.
+  `tasks/features_tasks.md` → `tasks/pipeline_tasks.md`. Write `TaskIndex.md` last.
+  `TaskIndex.md` must list the exact filenames as written — copy them verbatim. Do not
+  reconstruct filenames from memory or description.
+- Each requirement in a task spec must appear exactly once, stated with precision.
+  Do not restate the same requirement in a different form for emphasis.
+
+## Task Description Constraint
+
+Task descriptions must describe what a function must achieve and what its output
+contract is — not how to implement it. A task description is complete when it states
+the function's purpose, its inputs, its outputs, and the constraints it must satisfy
+(by reference to ADRs and stage manifests). It is over-specified when it includes
+step-by-step instructions, specific API calls, parameter values, or call sequences.
+The coder is responsible for implementation decisions — the task spec is responsible
+for correctness criteria.
+
+Every design decision in a task is governed by an authoritative document. The task spec
+must cite that document by name — not restate or elaborate it. The governing documents
+and their domains:
+- ADRs: all design decisions
+- build-env-manifest: environment, build, entry point, config structure
+- stage manifests: stage-specific design
+- boundary contracts: input/output schema and column contracts
+
+Before finalizing each task, enumerate the design decisions the coder will face when
+implementing this function — not the steps, but the decisions: How will data be
+transformed? What operations will be applied to columns? Will new rows be constructed?
+Will dtypes need to survive intermediate operations? For each decision identified, cite
+the governing document by name.
+
+A citation ("see ADR-003") is not a prescription. Silence is not neutrality — it
+creates a decision vacuum the coder fills from training priors, bypassing the
+authoritative document entirely.
+
+## Task Decomposition Constraint
+
+When decomposing a stage into tasks, reason about how each function's output is consumed
+downstream within the same stage. Prefer fewer, more complete functions over fine-grained
+decomposition that pushes contract enforcement onto the caller. All return paths of a
+function must satisfy the same output contract — a function that can return empty,
+filtered, or full results must guarantee the same schema, types, and column set on
+every path.
 
 ## Definition of Done Constraint
 
@@ -181,7 +222,7 @@ After all task files and `TaskIndex.md` are successfully written:
 
 1. Call `stage_and_check_git` to stage all files changed in the run at one go:
    ```
-   stage_and_check_git("git add TaskIndex.md tasks/acquire_tasks.md tasks/ingest_tasks.md tasks/transform_tasks.md tasks/features_tasks.md")
+   stage_and_check_git("git add TaskIndex.md tasks/acquire_tasks.md tasks/ingest_tasks.md tasks/transform_tasks.md tasks/features_tasks.md tasks/pipeline_tasks.md")
    ```
 
 2. After `stage_and_check_git` returns, return a concise completion summary: list the
@@ -220,7 +261,8 @@ Keep your response under 200 words.
 │   ├── acquire_tasks.md
 │   ├── ingest_tasks.md
 │   ├── transform_tasks.md
-│   └── features_tasks.md
+│   ├── features_tasks.md
+│   └── pipeline_tasks.md
 ├── data/
 │   ├── external/          <- source index / reference data files
 │   ├── interim/
@@ -231,13 +273,15 @@ Keep your response under 200 words.
 │   ├── test_acquire.py
 │   ├── test_ingest.py
 │   ├── test_transform.py
-│   └── test_features.py
+│   ├── test_features.py
+│   └── test_pipeline.py
 └── {project}_pipeline/
     ├── __init__.py
     ├── acquire.py
     ├── ingest.py
     ├── transform.py
-    └── features.py
+    ├── features.py
+    └── pipeline.py
 ```
 
 </context>

@@ -31,6 +31,11 @@ names them.
 
 **H2:** All columns must carry data-dictionary dtypes before leaving ingest —
 pandas inference must not determine the schema of any column passed downstream.
+Schema enforcement applies to all DataFrames produced within the stage regardless
+of row count — including empty DataFrames. An empty DataFrame with untyped columns
+will cause dtype mismatches when combined with typed partitions in the Dask graph,
+and will fail at the Parquet write step. A zero-row DataFrame with correct column
+names and dtypes is a valid schema-conformant output.
 
 **H3:** Absent columns have two distinct error semantics:
 - `nullable=yes` column absent from source → add as all-NA column at the correct

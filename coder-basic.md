@@ -20,6 +20,11 @@ identifying exact files, line numbers, and errors. Your job is to apply minimal 
 - If a fix requires understanding a function signature, read only the relevant
   function — not the whole file
 
+## Coding Patterns
+
+Read `/agent_docs/coding-patterns.md` before implementing any fix. It contains cross-cutting
+implementation guidance that applies to all stages.
+
 ## Common Fix Patterns
 
 **pandas 2.0 API changes:**

@@ -20,14 +20,9 @@ Use Dask threaded scheduler for the I/O-bound acquire stage.
 
 ### Consequences
 → Scheduler choice is stage-dependent — acquire is I/O-bound (downloading files),
-  ingest/transform/features are CPU-bound (data processing). They have fundamentally
-  different bottlenecks and must never share the same scheduler.
-→ All row-level operations must be vectorized — the distributed scheduler exposes
-  scale behavior that pandas loops hide on small data.
+  ingest/transform/features are CPU-bound (data processing).
 → Partition count is a first-class design concern — it propagates across stage
   boundaries and must be treated as a contract, not an implementation detail.
-→ Code correct on 10K rows may fail silently at 4M rows — scale behavior must be
-  reasoned about explicitly at design time, not discovered at runtime.
 
 ---
 
@@ -42,6 +37,11 @@ All transformation and feature engineering logic must be designed for scale from
 the start — not optimized after correctness is established.
 
 ### Consequences
+→ Performance requirements are first-class constraints, not post-correctness
+  optimizations — a functionally correct but unscalable implementation is an
+  incomplete implementation.
+→ Code correct on 10K rows may fail silently at 4M rows — scale behavior must be
+  reasoned about explicitly at design time, not discovered at runtime.
 → Per-row iteration operations are prohibited regardless of correctness — they
   become prohibitively slow at production data volumes (millions of rows,
   thousands of unique entities).
@@ -51,12 +51,6 @@ the start — not optimized after correctness is established.
 → When choosing between vectorized approaches, prefer in this order: built-in
   vectorized operations first, grouped transformations second, row-wise
   application only as a last resort when no vectorized alternative exists.
-  Never iterate over rows.
-→ Code correct on 10K rows may fail silently at 4M rows — scale behavior must be
-  reasoned about explicitly at design time, not discovered at runtime.
-→ Performance requirements are first-class constraints, not post-correctness
-  optimizations — a functionally correct but unscalable implementation is an
-  incomplete implementation.
 
 ---
 
@@ -69,16 +63,14 @@ incorrect types and silent failures downstream.
 
 ### Decision
 The project data dictionary CSV is the single source of truth for all schema
-decisions — column names, dtypes, nullable status, and categorical values. No
+decisions — column names, data-types, nullable status, and categorical values. No
 schema information is inferred from the data itself.
 
 ### Consequences
-→ Dtype mapping must always be derived from the data dictionary — never from
-  pandas inference or column name heuristics.
+→ Data-type mapping must always be derived from the data dictionary — never inferred from the data itself or from column    name heuristics.
 → Columns marked nullable=yes in the data dictionary must use nullable-aware
-  dtype variants — standard non-nullable types cannot hold null values and
-  pandas will upcast them (e.g. int64 → float64) to accommodate nulls,
-  causing downstream dtype mismatches when Dask validates partitions against
+  data-type variants — standard non-nullable types cannot hold null values and
+  data-APIs will upcast them (for example, in pandas api, non-nullable integer data-type is cast to floating point data-type) to accommodate nulls, causing downstream data-type mismatches when Dask validates partitions against
   expected schema.
 → Nullable status governs error handling for absent columns — the distinction
   between nullable=yes and nullable=no is not optional and cannot be collapsed
@@ -86,13 +78,13 @@ schema information is inferred from the data itself.
 → Categorical allowed values are defined in the data dictionary — values outside
   the declared set must be replaced with the appropriate null sentinel before
   casting, never allowed to propagate silently.
-→ Meta derivation and function execution must share the same code path — for
+→ Meta derivation and function execution must share the same code path (for
   example, meta can be derived by calling the actual function on a minimal real
-  input and slicing to zero rows. Any construction of meta that is separate from
+  input and slicing to zero rows). Any construction of meta that is separate from
   calling the actual function is prohibited, whether derived from the data
   dictionary, inferred from function logic, or extracted into a helper function.
 → Dask metadata must accurately reflect the actual output schema in column
-  names, column order, and dtypes — a mismatch causes silent wrong results or
+  names, column order, and data-types — a mismatch causes silent wrong results or
   runtime errors at compute time.
 
 ---
@@ -228,3 +220,9 @@ test case specifications.
 → Test requirements must be read from test-requirements.xml before
   writing any task spec — it is the authoritative source for what
   tests are required, not the coder's judgment.
+→ Integration tests must write all stage outputs to pytest's `tmp_path`
+  fixture — never to the project's `data/` directories. Stage functions
+  under test must accept a config dict with output paths overridden to
+  `tmp_path`. This ensures automatic cleanup and prevents test runs from
+  corrupting pipeline data or leaving residual files in `data/interim/`,
+  `data/features/`, or `data/processed/`.

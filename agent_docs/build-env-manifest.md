@@ -15,9 +15,13 @@ pipeline entry point, structured configuration, and correct dependency managemen
 
 ## Build backend
 
-The package build backend must be compatible with pip editable install on all
-supported Python versions. The backend must be explicitly declared — never rely
-on setuptools defaults.
+The package build backend must be explicitly declared — never rely on setuptools
+defaults. The backend must be the primary public entry point exposed by the
+package installer — not an internal alias, submodule, or path containing words
+like `backends` or `legacy`. Internal submodule paths are not part of the public
+API and are not guaranteed to be present across installer versions. If uncertain,
+verify: the module path must be directly importable after a clean `pip install`
+of the installer package.
 
 ## Environment setup
 
@@ -25,6 +29,11 @@ The project must provide a target to create a clean virtual environment and a
 target to install all dependencies including development tools. The install
 sequence must bootstrap the package installer itself before installing project
 dependencies — never assume the installer is up to date.
+
+The Makefile venv target must invoke the unversioned Python interpreter
+(e.g. `python3`). Never derive a specific binary name (e.g. `python3.11`) from
+`requires-python` in pyproject.toml — that field declares the minimum version
+floor, not the binary name available on the target machine.
 
 ## Pipeline targets
 

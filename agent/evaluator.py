@@ -62,6 +62,18 @@ def run_tests(repo_root: str, project: str) -> CheckResult:
     )
     return CheckResult(errors=normalize_paths(result.stdout+result.stderr, project=project), status=result.returncode)
 
+def run_integration_tests(repo_root: str, project: str) -> CheckResult:
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/",
+        "-m", "integration",
+        "--tb=short", "-q"
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    return CheckResult(errors=normalize_paths(result.stdout+result.stderr, project=project), status=result.returncode)
+
 def check_for_blocker(repo_root: str, project: str) -> CheckResult:
     """Search all Python files in {project}_pipeline/ and tests/ for BLOCKER: comments."""
 
@@ -152,16 +164,18 @@ def run_evaluator() -> dict[str, bool | str]:
     # Gate 1 — ensure dev deps installed (pandas-stubs, types-requests etc.)
     install_deps(repo_root)
 
-    # Gate 2 — quality checks & tests
+    # Gate 2 — quality checks, unit tests, and integration tests
     linting_response = linting(repo_root, project=project)
     type_check_response = type_check(repo_root, project=project)
     tests_response = run_tests(repo_root, project=project)
+    integration_response = run_integration_tests(repo_root, project=project)
     failures = dict()
     passed = True
     for check, label in [
         (linting_response, "Linting"),
         (type_check_response, "Type check"),
-        (tests_response, "Unit Tests")
+        (tests_response, "Unit Tests"),
+        (integration_response, "Integration Tests"),
     ]:
         if check["status"] != 0:
             failures[label] = f"{label} failed. Fix these errors:\n{check['errors']}"
