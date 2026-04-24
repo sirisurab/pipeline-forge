@@ -26,9 +26,18 @@ Execute the following steps in strict order:
       - Do not delegate to `coder-basic` for blockers
      
      **Failures** — if `run_evaluator` returns non-empty `failures`
-      - Parse the `failures` fields to identify what needs fixing
-      - Create one todo item per file that needs fixing, with the specific errors for that file
-      - Delegate each fix to `coder-basic`, passing only the errors relevant to that file and the file-path for the file
+      - Parse the `failures` fields and classify each failing test as **unit** or **integration** (`@pytest.mark.integration`):
+
+        **Unit test failure**: create one todo per file that needs fixing; delegate to `coder-basic` with the errors and the file path.
+
+        **Integration test failure**: do not delegate by test file. Instead:
+          1. Read the error message to identify which stage's output first shows wrong data:
+             - Wrong data in interim Parquet (ingest output) → `agent_docs/boundary-ingest-transform.md`
+             - Wrong data in processed Parquet (transform output) → `agent_docs/boundary-transform-features.md`
+             - Full pipeline failure: trace from features back through transform to identify the earliest stage with wrong output, then use the boundary contract for that stage's output
+          2. Identify the **producing** stage file — the stage upstream of where wrong data was first detected
+          3. Delegate to `coder-basic` with: the error, the producing stage file path, and the boundary contract path to read
+
       - Mark the todo item done when `coder-basic` confirms the fix
       - Call `run_evaluator()` again after all todos are complete
       - Repeat up to a maximum of 6 run_evaluator <-> coder-basic loop iterations
@@ -36,6 +45,25 @@ Execute the following steps in strict order:
 5. **Git commit** — once `run_evaluator` returns `passed=True`:
    - call tool `commit_git(comment)` - this tool has an interrupt configured and will need human approval
 
+
+## Pipeline Reference
+
+**Stage → implementation file** (stable across runs):
+- acquire → `{project}_pipeline/acquire.py`
+- ingest → `{project}_pipeline/ingest.py`
+- transform → `{project}_pipeline/transform.py`
+- features → `{project}_pipeline/features.py`
+
+**Stage → output location** (read `config.yaml` to find paths — coder-advanced writes config.yaml fresh each run so key names within sections may vary):
+- ingest output → look in the `ingest` section of config.yaml for the output directory
+- transform output → look in the `transform` section of config.yaml for the output directory
+- features output → look in the `features` section of config.yaml for the output directory
+
+**Boundary contracts**:
+- ingest → transform: `agent_docs/boundary-ingest-transform.md`
+- transform → features: `agent_docs/boundary-transform-features.md`
+
+**Tracing ambiguous integration failures** — when the producing stage cannot be determined from the error message alone, instruct coder-basic to read the intermediate Parquet at each stage boundary (using output paths read from config.yaml) and report which output first violates its boundary contract. The orchestrator does triage; coder-basic does the investigation.
 
 ## Rules
 

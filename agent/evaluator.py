@@ -135,12 +135,19 @@ def write_eval_to_file(eval_path: Path, eval_result: EvalResult) -> dict[str, bo
         return {"passed": False, "result": f"Eval failed: {failure_summary}. See {eval_file} for full errors (timestamp: {timestamp})"}  # noqa: E501
 
 
-def install_deps(repo_root: str) -> None:
-    """Install dev dependencies from pyproject.toml before running checks."""
-    subprocess.run(
+def install_deps(repo_root: str) -> CheckResult:
+    """Install dev dependencies from pyproject.toml before running checks.
+    Returns a CheckResult so build backend errors surface in the eval output.
+    """
+    result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-e", ".[dev]", "-q"],
         cwd=repo_root,
         capture_output=True,
+        text=True,
+    )
+    return CheckResult(
+        errors=result.stdout + result.stderr,
+        status=result.returncode,
     )
 
 @tool
@@ -161,8 +168,15 @@ def run_evaluator() -> dict[str, bool | str]:
         result = write_eval_to_file(eval_path, eval_result)
         return result
 
-    # Gate 1 — ensure dev deps installed (pandas-stubs, types-requests etc.)
-    install_deps(repo_root)
+    # Gate 1 — install dev deps; fail fast if build backend is broken
+    install_response = install_deps(repo_root)
+    if install_response["status"] != 0:
+        eval_result = EvalResult(
+            passed=False,
+            blockers="",
+            failures={"Install": f"pip install failed — likely a build backend error in pyproject.toml.\n{install_response['errors']}"},
+        )
+        return write_eval_to_file(eval_path, eval_result)
 
     # Gate 2 — quality checks, unit tests, and integration tests
     linting_response = linting(repo_root, project=project)

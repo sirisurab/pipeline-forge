@@ -30,7 +30,7 @@ find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 find . -name "*.pyc" -delete 2>/dev/null
 
 # Data pipeline outputs (preserve data/external)
-rm -rf data/raw/* data/interim/* data/processed/*
+rm -rf data/raw/* data/interim/* data/processed/* data/features/*
 
 # Editable install metadata
 rm -rf "${project}_pipeline.egg-info"

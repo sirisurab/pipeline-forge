@@ -131,24 +131,139 @@ Context-bit counts for errors 1–21 are estimates (retroactive — no per-commi
 
 ## Per-Run Log
 
-Tracks errors surfaced per run. "New" = first occurrence of this error class. "Recurring" = error class previously seen and supposedly fixed.
-Eval loop counts before run 8 are not available (not logged by evaluator at that time).
+Tracks errors surfaced per run. Eval loop data sourced from `eval_results.md` git history in the kgs and cogcc repos (both separate from dapi_poc). KGS runs before 2026-04-01 predate evaluator file logging and have no eval data.
 
-| Run | Pipeline | Date | Eval loops | New errors surfaced | Recurring | Notes |
+Error-to-run mapping for early runs is approximate — test names changed across versions and don't map cleanly to error table numbers.
+
+| Run | Pipeline | Date | Eval loops (to first pass) | Eval duration | Main test failures | Error #s (approx) |
 |---|---|---|---|---|---|---|
-| COGCC-1 | COGCC | unknown | ? | 1, 2, 3, 4, 5, 6 | 0 | First COGCC attempt |
-| COGCC-2 | COGCC | unknown | ? | 0 | 0 | All 6 constraints passed |
-| KGS-1 | KGS | unknown | ? | 7, 8, 12 | 0 | First KGS attempt; these 3 fixed by run 3 |
-| KGS-2 | KGS | unknown | ? | — | 0 | Intermediate; no new error classes documented |
-| KGS-3 | KGS | unknown | ? | 0 | 0 | Errors 7, 8, 12 constraints validated |
-| KGS-4 | KGS | unknown | ? | 9, 10, 11, 13, 14, 15, 16, 17 | 0 | First full build attempt; setuptools error here |
-| KGS-5 | KGS | unknown | ? | — | 0 | Intermediate; no new error classes documented |
-| KGS-6 | KGS | unknown | ? | — | 0 | Intermediate |
-| KGS-7 | KGS | unknown | ? | 18, 19, 20, 21 | 0 | Pre-Opus task-writer |
-| KGS-8 | KGS | 2026-04-23 | 7 | 22, 23, 24, 25, 26 | 17 | Opus task-writer; first run with integration tests |
+| COGCC-1 | COGCC | 2026-04-05 | 5 | 46m 21s | features: cumulative monotonic, schema validation/logging | est. 2, 4, 5 |
+| COGCC-2 | COGCC | 2026-04-09 | 4 | 46m 23s | ingest: dtypes, missing col raises; transform: production_date dtype, well_status cast | est. 1, 3, 7 |
+| COGCC-3 | COGCC | 2026-04-16 | 3 | 1h 3m 44s | features: rolling partial window; ingest: missing nullable col, schema key count; transform: dtype, clean_volumes, TR-12 | est. 1, 2, 7, 8 |
+| KGS pre-log | KGS | 2026-03-21 to 2026-03-31 | ? | ? | no eval_results.md (pre-evaluator logging) | 7, 8, 12 (est.) |
+| KGS-A | KGS | 2026-04-01 | 6 | 29m 54s | features: cumulative/schema/categoricals; transform: duplicates | early feature/transform (est. 9, 13) |
+| KGS-B | KGS | 2026-04-16 | 3 | 33m 10s | acquire: idempotency; ingest: dtype mapping, dtype_validation | est. 6, 7 |
+| KGS-C | KGS | 2026-04-17 | 5 | 38m 13s | ingest: absent nullable col, categorical→NA, year filter, url col drop; transform: physical bounds | est. 7, 8, 10 |
+| KGS-D | KGS | 2026-04-20 | 3 | 17m 18s | ingest: enforce_schema drops extra col, schema key count; transform: parse_production_date malformed | est. 8, 17, 24 |
+| KGS-E | KGS | 2026-04-23 | 7 | 16m 41s | features: cumulative/decline/rolling; ingest: empty file returns; pipeline: logging handlers, stage ordering | est. 18, 19, 21, 22, 23 |
+| KGS-F (Opus) | KGS | 2026-04-23 | 7 | 27m 42s | see loop detail below | 22–26, recurring 17 |
 
-**Recurrence rate to date:** 2 recurrence events (errors 10, 22 as ≡ #4 class; error 17 returning in run 8) out of 26 total error instances = ~12% recurrence rate by error count.  
-**Recurrence rate by run:** 1 run (KGS-8) had a recurring error out of 10 runs = 10% of runs had at least one recurrence.
+**Recurrence rate to date:** 2 recurrence events (errors 10, 22 as ≡ #4 class; error 17 returning in KGS-F) out of 26 total error instances = ~12% recurrence rate by error count.  
+**Recurrence rate by run:** 1 run (KGS-F) had a recurring error out of 9 logged runs (3 COGCC + 6 KGS) = 11% of runs had at least one recurrence.
+
+**Eval duration summary (all logged runs):**
+
+| Run | Loops | Duration | Avg per loop |
+|---|---|---|---|
+| COGCC-1 | 5 | 46m 21s | 9m 17s |
+| COGCC-2 | 4 | 46m 23s | 11m 36s |
+| COGCC-3 | 3 | 1h 3m 44s | 21m 15s |
+| KGS-A | 6 | 29m 54s | 4m 59s |
+| KGS-B | 3 | 33m 10s | 11m 3s |
+| KGS-C | 5 | 38m 13s | 7m 38s |
+| KGS-D | 3 | 17m 18s | 5m 46s |
+| KGS-E | 7 | 16m 41s | 2m 23s |
+| KGS-F | 7 | 27m 42s | 3m 58s |
+
+### COGCC-1 Eval Loop Detail (2026-04-05)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 12:56:36 | ❌ | 22m 49s |
+| 2 | 13:19:25 | ❌ | 9m 6s |
+| 3 | 13:28:31 | ❌ | 7m 16s |
+| 4 | 13:35:47 | ❌ | 7m 10s |
+| 5 | 13:42:57 | ✅ | — |
+
+### COGCC-2 Eval Loop Detail (2026-04-09)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 05:13:25 | ❌ | 22m 41s |
+| 2 | 05:36:06 | ❌ | 16m 16s |
+| 3 | 05:52:22 | ❌ | 7m 26s |
+| 4 | 05:59:48 | ✅ | — |
+
+### COGCC-3 Eval Loop Detail (2026-04-16)
+
+4 entries in eval_results.md; first pass at loop 3. Loop 4 (14:32:43 ✅) is a separate re-run after commit, not part of the eval sequence.
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 11:35:44 | ❌ | 49m 35s |
+| 2 | 12:25:19 | ❌ | 14m 9s |
+| 3 | 12:39:28 | ✅ | — |
+
+**Observation:** Loop 1→2 gap = 49m 35s — longest single coder iteration across all runs (both pipelines). This was likely a large structural rewrite of multiple stages simultaneously.
+
+### KGS-A Eval Loop Detail (2026-04-01)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 10:46:09 | ❌ | 7m 53s |
+| 2 | 10:54:02 | ❌ | 6m 31s |
+| 3 | 11:00:33 | ❌ | 4m 44s |
+| 4 | 11:05:17 | ❌ | 6m 43s |
+| 5 | 11:12:00 | ❌ | 4m 3s |
+| 6 | 11:16:03 | ✅ | — |
+
+### KGS-B Eval Loop Detail (2026-04-16)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 18:26:55 | ❌ | 26m 13s |
+| 2 | 18:53:08 | ❌ | 6m 57s |
+| 3 | 19:00:05 | ✅ | — |
+
+**Observation:** Loop 1 → 2 gap = 26m — longest single coder iteration across all runs. Likely a large structural rewrite.
+
+### KGS-C Eval Loop Detail (2026-04-17)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 00:03:16 | ❌ | 18m 59s |
+| 2 | 00:22:15 | ❌ | 9m 8s |
+| 3 | 00:31:23 | ❌ | 5m 46s |
+| 4 | 00:37:09 | ❌ | 4m 20s |
+| 5 | 00:41:29 | ✅ | — |
+
+### KGS-D Eval Loop Detail (2026-04-20)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 00:30:21 | ❌ | 12m 14s |
+| 2 | 00:42:35 | ❌ | 5m 4s |
+| 3 | 00:47:39 | ✅ | — |
+
+### KGS-E Eval Loop Detail (2026-04-23 AM)
+
+| Loop | Time | Status | Duration to next |
+|---|---|---|---|
+| 1 | 10:27:05 | ❌ | 7m 22s |
+| 2 | 10:34:27 | ❌ | 3m 2s |
+| 3 | 10:37:29 | ❌ | 1m 56s |
+| 4 | 10:39:25 | ❌ | 1m 46s |
+| 5 | 10:41:11 | ❌ | 1m 19s |
+| 6 | 10:42:30 | ❌ | 1m 16s |
+| 7 | 10:43:46 | ✅ | — |
+
+**Observation:** Loops 3–7 all under 2 min — rapid iteration on small incremental fixes after the major fix in loop 1→2.
+
+### KGS-F Eval Loop Detail (2026-04-23 PM, Opus task-writer)
+
+4.6M tokens, $7.10 (4.2M input from cache = 91% cache hit rate). Total eval window: 15:11:59 → 15:39:41 (27m 42s).
+
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 15:11:59 | ❌ | Lint (F841 x2), type check (where/NAType x6, NavigableString x2, array overload x3, arg-type x2 = 15 errors), unit (acquire x2, features-f2 x12, features-f5 x2, transform-meta x1), integration (f5-tr26, e2e, tr25) = 20 test failures | 9m 19s |
+| 2 | 15:21:18 | ❌ | Unit (f5-complete-cols, f5-tr14), integration (f5-tr26, e2e, tr25) = 5 failures | 4m 6s |
+| 3 | 15:25:24 | ❌ | Same 5 as loop 2 — no progress | 4m 35s |
+| 4 | 15:29:59 | ❌ | Same 5 as loop 2 — no progress | 3m 16s |
+| 5 | 15:33:15 | ❌ | Same 5 as loop 2 — no progress | 3m 10s |
+| 6 | 15:36:25 | ❌ | Integration (e2e, tr25) = 2 failures; f5 unit tests now passing | 3m 16s |
+| 7 | 15:39:41 | ✅ | — | — |
+
+**Observation:** Loops 2–5 = zero progress on same 5 failures for ~15 min (stuck on features column schema + integration partition counts). Loop 1→2 was the high-value fix (cleared 15 failures). KGS-E had the same 7-loop count but resolved in 16m 41s vs 27m 42s here — integration tests added in KGS-F increased per-loop cost.
 
 ---
 
