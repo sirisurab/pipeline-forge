@@ -30,6 +30,7 @@
 | 24 | `parse_production_date` uses `.map()` with nested functions on `MONTH-YEAR` | KGS | Transform | `df["MONTH-YEAR"].map(_is_summary)` on `pd.StringDtype()` column returns `string` dtype mask, not `bool`; `df[~mask]` performs column selection instead of row filtering → all columns dropped → `KeyError: 'MONTH-YEAR'` at line 68; also `.map()` is non-vectorized (row-by-row Python) and nested functions cause Dask pickle issues | Rewrite using `str.extract`, `pd.to_numeric`, `pd.to_datetime(errors='coerce')` — fully vectorized | ADR-001 vectorization constraint: tightened "last resort" clause — string column transformations must use vectorized str methods; `.map()` with Python functions on string columns is not a valid last resort | Task-writer was silent on vectorization for `parse_production_date`; no mechanism claim in task spec → Step 4 never fired → coder rationalized `.map()` as "last resort" case per ADR escape hatch; same silence-as-vacuum pattern as error 22 |
 | 25 | `fill_date_gaps` dtype loss — categorical columns become string after gap row concat | KGS | Transform | Gap rows constructed as `{c: pd.NA for c in columns}` dicts → `pd.DataFrame(gap_rows)` infers all-object dtypes → `pd.concat` with categorical-typed original strips category dtype from `TWN_DIR`, `RANGE_DIR`, `PRODUCT` → Parquet write fails with Arrow schema mismatch | Restore original dtypes after concat: `result[col].astype(df.dtypes[col])` for all columns | coding-patterns.md: when new rows are constructed and concatenated with an existing DataFrame, original dtypes must be restored after concat | Task-writer was silent on dtype preservation through intermediate row construction; task spec said "insert zero-production rows" but cited no governing document for dtype invariants; coder made a locally correct dict-based construction without considering global dtype preservation |
 | 26 | Makefile uses `python3.11` binary — fails if only `python3` or `python3.12` is in PATH | KGS | Build | Coder wrote `PYTHON := python3.11` in Makefile after seeing `requires-python = ">=3.11"` in pyproject.toml; derived a specific binary from a minimum-version constraint; machine has Python 3.12 but not a `python3.11` symlink | Change `PYTHON := python3.11` to `PYTHON := python3` | build-env-manifest: Makefile venv target must use `python3` (unversioned); `requires-python` in pyproject.toml defines the minimum — do not infer a specific binary name from it | Build-env-manifest silent on which Python binary the Makefile should use; coder made an unverifiable local inference (min version → specific binary); same pattern as Error 17 |
+| 27 | Duplicate `(well_id, production_date)` rows survive transform dedup — `cum_oil` non-monotonic in features | COGCC | Transform | COGCC raw data contains "Revised" reports — a revised monthly submission for the same well/month; 276+ wells per partition have two rows for the same date after transform; `cum_oil` cumsum accumulates over both rows → steps backward (e.g., 1237 → 1230 for same date) → non-monotonic per well; integration tests did not catch this (no cum_oil monotonicity check); pipeline passed eval | Not yet fixed; dedup must key on `(well_id, production_date)` after `set_index`, keeping the most recent `Revised` record | stage-manifest-transform: dedup must be keyed on the entity index + date column after `set_index`; when multiple rows exist for the same (entity, date), the Revised flag must determine which row is kept (latest Revised=True preferred, else latest by AcceptedDate) | Transform dedup was implemented but not keyed correctly for COGCC's Revised report pattern; task spec did not describe the dedup key or tie-breaking rule; no integration test asserts cum_oil monotonicity |
 
 ---
 
@@ -53,7 +54,7 @@
 | 14 | tests: numpy scalar identity — use == not is | ❌ not yet |
 | 15 | tests: pandas Series negation — use ~ not == False | ❌ not yet |
 | 16 | tests: no unused variable assignments | ❌ not yet |
-| 17 | build-env-manifest: backend must be primary public entry point — no internal/legacy submodule paths; verify importability (constraint tightened from vague principle to elimination rule) | ❌ not yet — constraint updated 2026-04-24 |
+| 17 | build-env-manifest: backend must be primary public entry point — no internal/legacy submodule paths; verify importability (constraint tightened from vague principle to elimination rule) | ✅ COGCC-4 (no Install failure — constraint held) |
 | 18 | task-writer.md: task specs must not re-derive or enumerate data contracts — cite boundary doc by name | ❌ not yet |
 | 19 | stage-manifest-ingest H2 extended + Task Decomposition Constraint: all return paths satisfy same output contract | ❌ not yet |
 | 20 | stage-manifest-transform H4: set_index last before write | ❌ not yet |
@@ -62,7 +63,8 @@
 | 23 | pipeline_tasks.md: scheduler init must be conditioned on Dask stage presence, not acquire branch | ❌ not yet |
 | 24 | ADR-001: `.map()` with Python functions on string columns is not a valid last resort | ❌ not yet |
 | 25 | coding-patterns.md: restore original dtypes after concat when constructing new rows | ❌ not yet |
-| 26 | build-env-manifest: Makefile venv target must use unversioned `python3` — do not infer binary name from `requires-python` | ❌ not yet — constraint added 2026-04-24 |
+| 26 | build-env-manifest: Makefile venv target must use unversioned `python3` — do not infer binary name from `requires-python` | ✅ COGCC-4 (no Install failure — constraint held) |
+| 27 | stage-manifest-transform: dedup must key on (entity index, date) after set_index; tie-break by Revised flag then AcceptedDate | ❌ not yet fixed |
 
 ---
 
@@ -123,6 +125,7 @@ Context-bit counts for errors 1–21 are estimates (retroactive — no per-commi
 | 24 | new | — | KGS-8 | ADRs.md (ADR-001, .map() on string cols not a valid last resort) | ~60 |
 | 25 | new | — | KGS-8 | coding-patterns.md (restore dtypes after concat) | ~50 |
 | 26 | recurring (≡ #17) | — | KGS-8 | build-env-manifest.md (python3 unversioned binary) | 49 |
+| 27 | new | — | COGCC-4 (output review) | stage-manifest-transform.md (dedup key + tie-break rule) | — |
 
 **Cumulative context words added (estimated):** ~1,546  
 **Exact counts available from:** error 22 onward
@@ -135,21 +138,23 @@ Tracks errors surfaced per run. Eval loop data sourced from `eval_results.md` gi
 
 Error-to-run mapping for early runs is approximate — test names changed across versions and don't map cleanly to error table numbers.
 
-| Run | Pipeline | Date | Eval loops (to first pass) | Eval duration | Main test failures | Error #s (approx) |
-|---|---|---|---|---|---|---|
-| COGCC-1 | COGCC | 2026-04-05 | 5 | 46m 21s | features: cumulative monotonic, schema validation/logging | est. 2, 4, 5 |
-| COGCC-2 | COGCC | 2026-04-09 | 4 | 46m 23s | ingest: dtypes, missing col raises; transform: production_date dtype, well_status cast | est. 1, 3, 7 |
-| COGCC-3 | COGCC | 2026-04-16 | 3 | 1h 3m 44s | features: rolling partial window; ingest: missing nullable col, schema key count; transform: dtype, clean_volumes, TR-12 | est. 1, 2, 7, 8 |
-| KGS pre-log | KGS | 2026-03-21 to 2026-03-31 | ? | ? | no eval_results.md (pre-evaluator logging) | 7, 8, 12 (est.) |
-| KGS-A | KGS | 2026-04-01 | 6 | 29m 54s | features: cumulative/schema/categoricals; transform: duplicates | early feature/transform (est. 9, 13) |
-| KGS-B | KGS | 2026-04-16 | 3 | 33m 10s | acquire: idempotency; ingest: dtype mapping, dtype_validation | est. 6, 7 |
-| KGS-C | KGS | 2026-04-17 | 5 | 38m 13s | ingest: absent nullable col, categorical→NA, year filter, url col drop; transform: physical bounds | est. 7, 8, 10 |
-| KGS-D | KGS | 2026-04-20 | 3 | 17m 18s | ingest: enforce_schema drops extra col, schema key count; transform: parse_production_date malformed | est. 8, 17, 24 |
-| KGS-E | KGS | 2026-04-23 | 7 | 16m 41s | features: cumulative/decline/rolling; ingest: empty file returns; pipeline: logging handlers, stage ordering | est. 18, 19, 21, 22, 23 |
-| KGS-F (Opus) | KGS | 2026-04-23 | 7 | 27m 42s | see loop detail below | 22–26, recurring 17 |
+| Run | Pipeline | Date | Eval loops (to first pass) | Eval duration | Main test failures | Error #s (approx) | Tokens / Cost |
+|---|---|---|---|---|---|---|---|
+| COGCC-1 | COGCC | 2026-04-05 | 5 | 46m 21s | features: cumulative monotonic, schema validation/logging | est. 2, 4, 5 | — |
+| COGCC-2 | COGCC | 2026-04-09 | 4 | 46m 23s | ingest: dtypes, missing col raises; transform: production_date dtype, well_status cast | est. 1, 3, 7 | — |
+| COGCC-3 | COGCC | 2026-04-16 | 3 | 1h 3m 44s | features: rolling partial window; ingest: missing nullable col, schema key count; transform: dtype, clean_volumes, TR-12 | est. 1, 2, 7, 8 | — |
+| KGS pre-log | KGS | 2026-03-21 to 2026-03-31 | ? | ? | no eval_results.md (pre-evaluator logging) | 7, 8, 12 (est.) | — |
+| KGS-A | KGS | 2026-04-01 | 6 | 29m 54s | features: cumulative/schema/categoricals; transform: duplicates | early feature/transform (est. 9, 13) | — |
+| KGS-B | KGS | 2026-04-16 | 3 | 33m 10s | acquire: idempotency; ingest: dtype mapping, dtype_validation | est. 6, 7 | — |
+| KGS-C | KGS | 2026-04-17 | 5 | 38m 13s | ingest: absent nullable col, categorical→NA, year filter, url col drop; transform: physical bounds | est. 7, 8, 10 | — |
+| KGS-D | KGS | 2026-04-20 | 3 | 17m 18s | ingest: enforce_schema drops extra col, schema key count; transform: parse_production_date malformed | est. 8, 17, 24 | — |
+| KGS-E | KGS | 2026-04-23 | 7 | 16m 41s | features: cumulative/decline/rolling; ingest: empty file returns; pipeline: logging handlers, stage ordering | est. 18, 19, 21, 22, 23 | — |
+| KGS-F (Opus) | KGS | 2026-04-23 | 7 | 27m 42s | see loop detail below | 22–26, recurring 17 | 4.6M / $7.10 (91% cache) |
+| COGCC-4 | COGCC | 2026-04-24 | 12 | 54m 17s | see loop detail below | recurring 10/22/13; type errors in ingest/features/transform | 14.1M / $11.60 (94% cache) |
 
-**Recurrence rate to date:** 2 recurrence events (errors 10, 22 as ≡ #4 class; error 17 returning in KGS-F) out of 26 total error instances = ~12% recurrence rate by error count.  
-**Recurrence rate by run:** 1 run (KGS-F) had a recurring error out of 9 logged runs (3 COGCC + 6 KGS) = 11% of runs had at least one recurrence.
+**Recurrence rate to date:** 3 recurrence events (errors 10, 22 as ≡ #4 class; error 17 returning in KGS-F; error 13 float/NA regression in COGCC-4 loop 8) out of 26 total error instances = ~12% recurrence rate by error count.  
+**Recurrence rate by run:** 2 runs (KGS-F, COGCC-4) had recurring errors out of 10 logged runs (4 COGCC + 6 KGS) = 20% of runs had at least one recurrence.  
+**6-loop limit violation:** COGCC-4 ran 12 loops — orchestrator did not stop at 6 as mandated by the rules. Needs investigation.
 
 **Eval duration summary (all logged runs):**
 
@@ -164,90 +169,91 @@ Error-to-run mapping for early runs is approximate — test names changed across
 | KGS-D | 3 | 17m 18s | 5m 46s |
 | KGS-E | 7 | 16m 41s | 2m 23s |
 | KGS-F | 7 | 27m 42s | 3m 58s |
+| COGCC-4 | 12 | 54m 17s | 4m 31s |
 
 ### COGCC-1 Eval Loop Detail (2026-04-05)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 12:56:36 | ❌ | 22m 49s |
-| 2 | 13:19:25 | ❌ | 9m 6s |
-| 3 | 13:28:31 | ❌ | 7m 16s |
-| 4 | 13:35:47 | ❌ | 7m 10s |
-| 5 | 13:42:57 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 12:56:36 | ❌ | type check + `test_apply_well_features_parallel_cum_oil_monotonic`, `test_validate_features_schema_missing_column`, `test_run_features_logs_schema_error_without_raising` | 22m 49s |
+| 2 | 13:19:25 | ❌ | `test_apply_well_features_parallel_cum_oil_monotonic`, `test_validate_features_schema_missing_column`, `test_run_features_logs_schema_error_without_raising` | 9m 6s |
+| 3 | 13:28:31 | ❌ | `test_apply_well_features_parallel_cum_oil_monotonic`, `test_validate_features_schema_missing_column`, `test_run_features_logs_schema_error_without_raising` | 7m 16s |
+| 4 | 13:35:47 | ❌ | `test_run_features_logs_schema_error_without_raising` | 7m 10s |
+| 5 | 13:42:57 | ✅ | — | — |
 
 ### COGCC-2 Eval Loop Detail (2026-04-09)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 05:13:25 | ❌ | 22m 41s |
-| 2 | 05:36:06 | ❌ | 16m 16s |
-| 3 | 05:52:22 | ❌ | 7m 26s |
-| 4 | 05:59:48 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 05:13:25 | ❌ | linting + type check (test names not captured in eval_results.md for this loop) | 22m 41s |
+| 2 | 05:36:06 | ❌ | type check + `test_read_raw_file_dtypes`, `test_read_raw_file_missing_column_raises`, `test_build_production_date_dtype`, `test_cast_well_status_valid_values`, `test_transform_partition_production_date_dtype` | 16m 16s |
+| 3 | 05:52:22 | ❌ | type check only (no unit test failures) | 7m 26s |
+| 4 | 05:59:48 | ✅ | — | — |
 
 ### COGCC-3 Eval Loop Detail (2026-04-16)
 
 4 entries in eval_results.md; first pass at loop 3. Loop 4 (14:32:43 ✅) is a separate re-run after commit, not part of the eval sequence.
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 11:35:44 | ❌ | 49m 35s |
-| 2 | 12:25:19 | ❌ | 14m 9s |
-| 3 | 12:39:28 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 11:35:44 | ❌ | linting + type check + `test_rolling_6month_partial_window`, `test_load_data_dictionary_returns_33_keys`, `test_enforce_schema_missing_nullable_column`, `test_add_derived_columns_production_date_dtype`, `test_add_derived_columns_well_id_dtype`, `test_clean_volumes_oil_unit_flag_high`, `test_clean_volumes_oil_unit_flag_normal`, `test_tr12_cleaning_validation` | 49m 35s |
+| 2 | 12:25:19 | ❌ | linting only (no unit test failures) | 14m 9s |
+| 3 | 12:39:28 | ✅ | — | — |
 
 **Observation:** Loop 1→2 gap = 49m 35s — longest single coder iteration across all runs (both pipelines). This was likely a large structural rewrite of multiple stages simultaneously.
 
 ### KGS-A Eval Loop Detail (2026-04-01)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 10:46:09 | ❌ | 7m 53s |
-| 2 | 10:54:02 | ❌ | 6m 31s |
-| 3 | 11:00:33 | ❌ | 4m 44s |
-| 4 | 11:05:17 | ❌ | 6m 43s |
-| 5 | 11:12:00 | ❌ | 4m 3s |
-| 6 | 11:16:03 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 10:46:09 | ❌ | linting + type check + unit (test names not captured for this loop) | 7m 53s |
+| 2 | 10:54:02 | ❌ | type check + `test_compute_cumulative_shutin_flat`, `test_encode_categoricals_product_two_values`, `test_encode_categoricals_county_int_dtype`, `test_encode_categoricals_original_col_retained`, `test_encode_categoricals_unseen_value`, `test_run_features_returns_dask_df`, `test_run_features_all_schema_columns`, `test_run_features_no_negative_oil_bbl`, `test_run_features_cum_oil_monotonic`, `test_run_features_parquet_readable`, `test_run_features_schema_stability_across_partitions`, `test_run_features_output_file_count`, `test_feature_column_presence`, `test_cumulative_monotonicity`, `test_schema_stability_across_partitions`, `test_lazy_evaluation`, `test_remove_duplicates_removes_one` | 6m 31s |
+| 3 | 11:00:33 | ❌ | type check + unit (test names not captured) | 4m 44s |
+| 4 | 11:05:17 | ❌ | type check + `test_run_features_all_schema_columns`, `test_run_features_cum_oil_monotonic`, `test_feature_column_presence`, `test_cumulative_monotonicity`, `test_remove_duplicates_removes_one` | 6m 43s |
+| 5 | 11:12:00 | ❌ | type check only (no unit test failures) | 4m 3s |
+| 6 | 11:16:03 | ✅ | — | — |
 
 ### KGS-B Eval Loop Detail (2026-04-16)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 18:26:55 | ❌ | 26m 13s |
-| 2 | 18:53:08 | ❌ | 6m 57s |
-| 3 | 19:00:05 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 18:26:55 | ❌ | type check + `TestDownloadLeaseFile::test_idempotency_skips_existing`, `TestReadRawFile::test_correct_dtypes_and_source_file`, `TestRunIngest::test_dtype_validation` | 26m 13s |
+| 2 | 18:53:08 | ❌ | `TestDownloadLeaseFile::test_idempotency_skips_existing`, `TestResolvePandasDtype::test_int_not_nullable` | 6m 57s |
+| 3 | 19:00:05 | ✅ | — | — |
 
 **Observation:** Loop 1 → 2 gap = 26m — longest single coder iteration across all runs. Likely a large structural rewrite.
 
 ### KGS-C Eval Loop Detail (2026-04-17)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 00:03:16 | ❌ | 18m 59s |
-| 2 | 00:22:15 | ❌ | 9m 8s |
-| 3 | 00:31:23 | ❌ | 5m 46s |
-| 4 | 00:37:09 | ❌ | 4m 20s |
-| 5 | 00:41:29 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 00:03:16 | ❌ | linting + type check + `test_read_raw_file_absent_nullable_column`, `test_read_raw_file_year_filter`, `test_read_raw_file_non_numeric_year_dropped`, `test_read_raw_file_invalid_categorical_becomes_na`, `test_read_raw_file_url_column_dropped`, `test_validate_physical_bounds_oil_flag_over_50000`, `test_validate_physical_bounds_gas_no_flag` | 18m 59s |
+| 2 | 00:22:15 | ❌ | linting + type check + `test_read_raw_file_url_column_dropped` | 9m 8s |
+| 3 | 00:31:23 | ❌ | type check only | 5m 46s |
+| 4 | 00:37:09 | ❌ | type check only | 4m 20s |
+| 5 | 00:41:29 | ✅ | — | — |
 
 ### KGS-D Eval Loop Detail (2026-04-20)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 00:30:21 | ❌ | 12m 14s |
-| 2 | 00:42:35 | ❌ | 5m 4s |
-| 3 | 00:47:39 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 00:30:21 | ❌ | type check + `test_enforce_schema_drops_extra_column`, `test_parse_production_date_malformed_gives_nat` | 12m 14s |
+| 2 | 00:42:35 | ❌ | `test_load_schema_returns_21_keys` | 5m 4s |
+| 3 | 00:47:39 | ✅ | — | — |
 
 ### KGS-E Eval Loop Detail (2026-04-23 AM)
 
-| Loop | Time | Status | Duration to next |
-|---|---|---|---|
-| 1 | 10:27:05 | ❌ | 7m 22s |
-| 2 | 10:34:27 | ❌ | 3m 2s |
-| 3 | 10:37:29 | ❌ | 1m 56s |
-| 4 | 10:39:25 | ❌ | 1m 46s |
-| 5 | 10:41:11 | ❌ | 1m 19s |
-| 6 | 10:42:30 | ❌ | 1m 16s |
-| 7 | 10:43:46 | ✅ | — |
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 10:27:05 | ❌ | linting + type check + `TestAddCumulativeProduction::test_monotonically_nondecreasing`, `test_shut_in_month_flat_cumulative`, `test_first_month_zero_gives_zero_cumulative`, `test_resumes_after_shut_in`, `TestAddDeclineRate::test_clipped_below_minus_one`, `test_clipped_above_ten`, `test_within_bounds_passes_through`, `test_two_consecutive_zeros_no_extreme`, `TestAddRollingFeatures::test_lag_1_equals_prior_month`, `TestParseRawFile::test_empty_file_returns_empty_dataframe`, `TestSetupLogging::test_adds_stream_and_file_handler`, `TestMain::test_only_acquire_called_when_stage_is_acquire`, `test_setup_logging_called_first`, `test_exception_stops_downstream_stages` | 7m 22s |
+| 2 | 10:34:27 | ❌ | type check + `TestAddDeclineRate::test_clipped_below_minus_one`, `test_clipped_above_ten`, `test_within_bounds_passes_through`, `test_two_consecutive_zeros_no_extreme`, `TestSetupLogging::test_adds_stream_and_file_handler` | 3m 2s |
+| 3 | 10:37:29 | ❌ | `TestAddDeclineRate::test_clipped_below_minus_one`, `TestSetupLogging::test_adds_stream_and_file_handler` | 1m 56s |
+| 4 | 10:39:25 | ❌ | `TestSetupLogging::test_adds_stream_and_file_handler` | 1m 46s |
+| 5 | 10:41:11 | ❌ | `TestSetupLogging::test_adds_stream_and_file_handler` | 1m 19s |
+| 6 | 10:42:30 | ❌ | `TestSetupLogging::test_adds_stream_and_file_handler` | 1m 16s |
+| 7 | 10:43:46 | ✅ | — | — |
 
-**Observation:** Loops 3–7 all under 2 min — rapid iteration on small incremental fixes after the major fix in loop 1→2.
+**Observation:** Loops 3–7 all under 2 min — rapid iteration on small incremental fixes after the major fix in loop 1→2. `test_adds_stream_and_file_handler` stuck for loops 4–6 (3 consecutive loops on a single test).
 
 ### KGS-F Eval Loop Detail (2026-04-23 PM, Opus task-writer)
 
@@ -255,15 +261,42 @@ Error-to-run mapping for early runs is approximate — test names changed across
 
 | Loop | Time | Status | Failures | Duration to next |
 |---|---|---|---|---|
-| 1 | 15:11:59 | ❌ | Lint (F841 x2), type check (where/NAType x6, NavigableString x2, array overload x3, arg-type x2 = 15 errors), unit (acquire x2, features-f2 x12, features-f5 x2, transform-meta x1), integration (f5-tr26, e2e, tr25) = 20 test failures | 9m 19s |
-| 2 | 15:21:18 | ❌ | Unit (f5-complete-cols, f5-tr14), integration (f5-tr26, e2e, tr25) = 5 failures | 4m 6s |
+| 1 | 15:11:59 | ❌ | linting (F841 x2) + type check (15 errors) + `test_resolve_download_url_http_error_returns_none`, `test_download_file_non_utf8_no_file_left`, `test_f2_cumulative_sums_known_values`, `test_f2_cum_flat_across_zero_production`, `test_f2_cum_stays_zero_when_not_started`, `test_f2_gor_zero_oil_positive_gas`, `test_f2_gor_both_zero`, `test_f2_gor_gas_zero_oil_positive`, `test_f2_water_cut_zero_water`, `test_f2_water_cut_all_water`, `test_f2_decline_rate_clip_lower`, `test_f2_decline_rate_clip_upper`, `test_f2_decline_rate_within_bounds`, `test_f2_decline_rate_shutin_then_resume_clipped`, `test_f5_complete_column_set_tr19`, `test_f5_tr14_consistent_schema_across_partitions`, `test_meta_derivation_matches_live_output` + integration: `test_f5_tr26_integration`, `test_e2e_ingest_transform_features`, `test_transform_tr25_integration` | 9m 19s |
+| 2 | 15:21:18 | ❌ | `test_f5_complete_column_set_tr19`, `test_f5_tr14_consistent_schema_across_partitions` + integration: `test_f5_tr26_integration`, `test_e2e_ingest_transform_features`, `test_transform_tr25_integration` | 4m 6s |
 | 3 | 15:25:24 | ❌ | Same 5 as loop 2 — no progress | 4m 35s |
 | 4 | 15:29:59 | ❌ | Same 5 as loop 2 — no progress | 3m 16s |
 | 5 | 15:33:15 | ❌ | Same 5 as loop 2 — no progress | 3m 10s |
-| 6 | 15:36:25 | ❌ | Integration (e2e, tr25) = 2 failures; f5 unit tests now passing | 3m 16s |
+| 6 | 15:36:25 | ❌ | Integration: `test_e2e_ingest_transform_features`, `test_transform_tr25_integration` (f5 unit tests now passing) | 3m 16s |
 | 7 | 15:39:41 | ✅ | — | — |
 
 **Observation:** Loops 2–5 = zero progress on same 5 failures for ~15 min (stuck on features column schema + integration partition counts). Loop 1→2 was the high-value fix (cleared 15 failures). KGS-E had the same 7-loop count but resolved in 16m 41s vs 27m 42s here — integration tests added in KGS-F increased per-loop cost.
+
+### COGCC-4 Eval Loop Detail (2026-04-24)
+
+Total eval window: 05:52:17 → 06:46:34 (54m 17s). 12 loops — orchestrator 6-loop limit exceeded.
+
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 05:52:17 | ❌ | Linting, type check (transform x3, ingest x3, features x6 = 12 errors), unit (ingest x10, transform x4: null_entity + schema_stable + well_completeness + meta_matches), integration x4 | 7m 51s |
+| 2 | 06:00:08 | ❌ | Type check (ingest x5, features x5), unit (ingest x4, transform x3: schema_stable + well_completeness + meta_matches), integration x4 | 9m 29s |
+| 3 | 06:09:37 | ❌ | Type check (ingest x2, features x1), unit (transform x2: schema_stable + meta_matches) | 8m 25s |
+| 4 | 06:18:02 | ❌ | Linting (F841 `original_cols` x2 in transform), unit (transform x2: schema_stable + meta_matches) | 5m 22s |
+| 5 | 06:23:24 | ❌ | Unit (transform x2: schema_stable + meta_matches) | 4m 11s |
+| 6 | 06:27:35 | ❌ | Unit (transform x1: meta_matches only) | 3m 24s |
+| 7 | 06:30:59 | ❌ | REGRESSION: type check reintroduced (transform x2) + unit (meta_matches) | 4m 36s |
+| 8 | 06:35:35 | ❌ | REGRESSION: 5 new clean_partition failures (`pd.NA` for float64 = Error 13 class) + meta_matches = 7 unit failures | 2m 24s |
+| 9 | 06:37:59 | ❌ | Type check (transform x2) + unit (meta_matches: DaysProduced int64 vs float64) | 3m 40s |
+| 10 | 06:41:39 | ❌ | Unit (meta_matches: OpNumber float64 vs string) | 2m 10s |
+| 11 | 06:43:49 | ❌ | Unit (meta_matches: Revised bool vs string) | 2m 45s |
+| 12 | 06:46:34 | ✅ | — | — |
+
+**Key observations:**
+- `test_transform_map_partitions_meta_matches_output` stuck in loops 2–11 (10 consecutive loops) — same ADR-003 meta derivation recurring pattern as KGS-F.
+- Each loop 9–11 shows a different column dtype mismatch (DaysProduced, OpNumber, Revised) — coder is fixing one column per loop rather than deriving meta from the actual function output.
+- Loop 8 regression: coder introduced `pd.NA` as null sentinel for float64 columns while fixing meta — triggers Error 13 class (`TypeError: float() argument must be a string or a real number, not 'NAType'`). Error 13 constraint (added for KGS) did not prevent this in COGCC-4.
+- Loop 7 regression: type check reintroduced after being clean in loops 4–6. Coder over-corrected while fixing meta_matches.
+- 12 loops: orchestrator ran 6 loops past its stated limit with no human escalation — rule not enforced.
+- No Install failure: build backend (constraint 17) and Python binary (constraint 26) were correct in this run — both constraints held.
 
 ---
 
