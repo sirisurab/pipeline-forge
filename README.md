@@ -101,7 +101,7 @@ These are not one-off bugs. They are consistent behavior patterns that can be an
 
 - **Run-to-run reliability is improving but not yet characterized.** Loop counts dropped meaningfully after the second context refactor. Formal characterization to predict agent behavior across mdoel configurations and constraint specificity levels requires more testing.
 
-- **Convergence of eval-fix cycles is yet to be established** Determmining relevant loss fucntions that can be measured and tracked to study convergence across eval+fix iterations is W.I.P. Studying convergence while also trying to generalize the system across more datasets is a challenge.
+- **Convergence of eval-fix cycles is yet to be established** Determining relevant loss fucntions that can be measured and tracked to study convergence across eval+fix iterations is W.I.P. Studying convergence while also trying to generalize the system across more datasets is a challenge.
 
 - **Next: Texas RRC (Railroad Commission).** EBCDIC format, different schema, more complex acquire pattern. Onboarding requires two files — a project spec and a test requirements file. The interesting measurement is how much of the existing constraint set transfers versus what needs to be relearned. That is the real test of generalization.
 
