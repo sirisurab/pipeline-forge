@@ -1,0 +1,132 @@
+<svg viewBox="0 0 1000 530" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: Georgia, 'Times New Roman', serif; }
+    .rl  { font-size: 11.5px; fill: #1a1a1a; }
+    .rs  { font-size: 10px; fill: #7a7a7a; font-style: italic; }
+    .ch  { font-size: 10.5px; font-weight: bold; text-anchor: middle; }
+    .cd  { font-size: 9px; fill: #8a8a8a; text-anchor: middle; font-style: italic; }
+    .dl  { font-size: 10px; fill: #f5f0e8; text-anchor: middle; font-weight: bold; }
+    .gl  { font-size: 10.5px; font-style: italic; fill: #5a3a10; }
+  </style>
+
+  <rect width="1000" height="530" fill="#f7f4ee"/>
+
+  <!-- Title -->
+  <text x="500" y="24" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Test-class recurrence across eval runs</text>
+  <text x="500" y="40" font-size="10.5" fill="#6b6459" text-anchor="middle" font-style="italic">Each row is a recurring failure class. Each column is an agent run. Circle size = loops stuck in that run. 6 of 8 classes span both pipelines.</text>
+
+  <!-- Column header backgrounds — 12 runs
+       x positions: 200 + col*66 (col 0..11), width=66
+  -->
+  <rect x="198" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-A -->
+  <rect x="264" y="56" width="66" height="38" fill="#2a5a72" opacity="0.18"/>  <!-- COGCC-1 -->
+  <rect x="330" y="56" width="66" height="38" fill="#2a5a72" opacity="0.18"/>  <!-- COGCC-2 -->
+  <rect x="396" y="56" width="66" height="38" fill="#2a5a72" opacity="0.18"/>  <!-- COGCC-3 -->
+  <rect x="462" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-B -->
+  <rect x="528" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-C -->
+  <rect x="594" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-D -->
+  <rect x="660" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-E -->
+  <rect x="726" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-F -->
+  <rect x="792" y="56" width="66" height="38" fill="#2a5a72" opacity="0.18"/>  <!-- COGCC-4 -->
+  <rect x="858" y="56" width="66" height="38" fill="#2a5a72" opacity="0.18"/>  <!-- COGCC-5 -->
+  <rect x="924" y="56" width="66" height="38" fill="#8b3a3a" opacity="0.18"/>  <!-- KGS-G -->
+
+  <!-- Column headers -->
+  <text x="231" y="74"  class="ch" fill="#5a1a1a">KGS-A</text>   <text x="231" y="86"  class="cd">4/1</text>
+  <text x="297" y="74"  class="ch" fill="#1a475a">COGCC-1</text> <text x="297" y="86"  class="cd">4/5</text>
+  <text x="363" y="74"  class="ch" fill="#1a475a">COGCC-2</text> <text x="363" y="86"  class="cd">4/9</text>
+  <text x="429" y="74"  class="ch" fill="#1a475a">COGCC-3</text> <text x="429" y="86"  class="cd">4/16</text>
+  <text x="495" y="74"  class="ch" fill="#5a1a1a">KGS-B</text>   <text x="495" y="86"  class="cd">4/16</text>
+  <text x="561" y="74"  class="ch" fill="#5a1a1a">KGS-C</text>   <text x="561" y="86"  class="cd">4/17</text>
+  <text x="627" y="74"  class="ch" fill="#5a1a1a">KGS-D</text>   <text x="627" y="86"  class="cd">4/20</text>
+  <text x="693" y="74"  class="ch" fill="#5a1a1a">KGS-E</text>   <text x="693" y="86"  class="cd">4/23</text>
+  <text x="759" y="74"  class="ch" fill="#5a1a1a">KGS-F</text>   <text x="759" y="86"  class="cd">4/23</text>
+  <text x="825" y="74"  class="ch" fill="#1a475a">COGCC-4</text> <text x="825" y="86"  class="cd">4/24</text>
+  <text x="891" y="74"  class="ch" fill="#1a475a">COGCC-5</text> <text x="891" y="86"  class="cd">4/27</text>
+  <text x="957" y="74"  class="ch" fill="#5a1a1a">KGS-G</text>   <text x="957" y="86"  class="cd">4/27</text>
+
+  <!-- Divider under headers -->
+  <line x1="196" y1="96" x2="992" y2="96" stroke="#c8c0b4" stroke-width="0.8"/>
+  <!-- Vertical divider between labels and matrix -->
+  <line x1="196" y1="96" x2="196" y2="468" stroke="#c8c0b4" stroke-width="0.8"/>
+
+  <!-- Cross-pipeline group label -->
+  <text x="10" y="112" class="gl">Classes that appear in both pipelines</text>
+
+  <!-- Alternating row backgrounds -->
+  <rect x="10" y="118" width="980" height="52" fill="#e8e0cc" opacity="0.3"/>
+  <rect x="10" y="222" width="980" height="52" fill="#e8e0cc" opacity="0.3"/>
+  <rect x="10" y="326" width="980" height="52" fill="#e8e0cc" opacity="0.3"/>
+  <rect x="10" y="430" width="980" height="52" fill="#e8e0cc" opacity="0.3"/>
+
+  <!-- ROW 1: Meta derivation y=144 -->
+  <text x="14" y="138" class="rl" font-weight="bold">Meta derivation (ADR-003)</text>
+  <text x="14" y="152" class="rs">function output → Dask meta · 3 runs, 14 loops</text>
+  <!-- KGS-F: 1 loop -->
+  <circle cx="759" cy="142" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <!-- COGCC-4: 10 loops -->
+  <circle cx="825" cy="142" r="18"   fill="#2a5a72" opacity="0.88" stroke="#1a475a" stroke-width="1"/>
+  <text x="825" y="146" class="dl">10</text>
+  <!-- KGS-G: 3 loops -->
+  <circle cx="957" cy="142" r="11"   fill="#8b3a3a" opacity="0.88"/>
+  <text x="957" y="146" class="dl">3</text>
+
+  <!-- ROW 2: Schema stability y=248 -->
+  <text x="14" y="234" class="rl" font-weight="bold">Schema stability across partitions</text>
+  <text x="14" y="248" class="rs">same schema in every Dask partition · 3 runs, 7 loops</text>
+  <circle cx="231" cy="242" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="759" cy="242" r="9"    fill="#8b3a3a" opacity="0.88"/><text x="759" y="246" class="dl">2</text>
+  <circle cx="825" cy="242" r="13"   fill="#2a5a72" opacity="0.88"/><text x="825" y="246" class="dl">4</text>
+
+  <!-- ROW 3: Feature schema validation y=300 -->
+  <text x="14" y="286" class="rl" font-weight="bold">Feature schema validation</text>
+  <text x="14" y="300" class="rs">column presence + logging vs raising · 3 runs, 8 loops</text>
+  <circle cx="231" cy="293" r="9"    fill="#8b3a3a" opacity="0.88"/><text x="231" y="297" class="dl">2</text>
+  <circle cx="297" cy="293" r="13"   fill="#2a5a72" opacity="0.88"/><text x="297" y="297" class="dl">4</text>
+  <circle cx="759" cy="293" r="9"    fill="#8b3a3a" opacity="0.88"/><text x="759" y="297" class="dl">2</text>
+
+  <!-- ROW 4: Cumulative monotonicity y=352 -->
+  <text x="14" y="338" class="rl" font-weight="bold">Cumulative production monotonicity</text>
+  <text x="14" y="352" class="rs">cum_oil non-decreasing, dedup key · 5 runs, 9+ loops</text>
+  <circle cx="231" cy="345" r="9"    fill="#8b3a3a" opacity="0.88"/><text x="231" y="349" class="dl">2</text>
+  <circle cx="297" cy="345" r="11"   fill="#2a5a72" opacity="0.88"/><text x="297" y="349" class="dl">3</text>
+  <circle cx="693" cy="345" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="759" cy="345" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="891" cy="345" r="11"   fill="#2a5a72" opacity="0.88"/><text x="891" y="349" class="dl">3</text>
+
+  <!-- ROW 5: Dtype/nullable y=404 -->
+  <text x="14" y="390" class="rl" font-weight="bold">Dtype / nullable column handling</text>
+  <text x="14" y="404" class="rs">float null sentinel, extension dtype resolution · 7+ runs</text>
+  <circle cx="363" cy="397" r="6.5"  fill="#2a5a72" opacity="0.85"/>
+  <circle cx="429" cy="397" r="6.5"  fill="#2a5a72" opacity="0.85"/>
+  <circle cx="495" cy="397" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="561" cy="397" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="627" cy="397" r="6.5"  fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="825" cy="397" r="9"    fill="#2a5a72" opacity="0.88"/><text x="825" y="401" class="dl">5</text>
+  <circle cx="891" cy="397" r="9"    fill="#2a5a72" opacity="0.88"/><text x="891" y="401" class="dl">4</text>
+
+  <!-- ROW 6: E2E integration y=456 -->
+  <text x="14" y="442" class="rl" font-weight="bold">E2E / integration test failures</text>
+  <text x="14" y="456" class="rs">multi-stage data flow · 3 runs, 10+ loops</text>
+  <circle cx="759" cy="449" r="16"   fill="#8b3a3a" opacity="0.88"/><text x="759" y="453" class="dl">6</text>
+  <circle cx="825" cy="449" r="9"    fill="#2a5a72" opacity="0.88"/><text x="825" y="453" class="dl">2</text>
+  <circle cx="957" cy="449" r="9"    fill="#8b3a3a" opacity="0.88"/><text x="957" y="453" class="dl">2</text>
+
+  <!-- Separator -->
+  <line x1="10" y1="474" x2="990" y2="474" stroke="#c8c0b4" stroke-width="0.7" stroke-dasharray="4,3"/>
+  <text x="10" y="490" class="gl">Classes observed in a single pipeline so far</text>
+
+  <!-- ROW 7: Build backend (KGS only) -->
+  <text x="14" y="506" class="rl">Build backend / binary name concretization</text>
+  <text x="14" y="518" class="rs" style="font-size:9.5px">setuptools.backends path; versioned python3.11 binary · KGS only (3 runs)</text>
+  <circle cx="693" cy="509" r="6.5" fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="759" cy="509" r="6.5" fill="#8b3a3a" opacity="0.85"/>
+  <circle cx="957" cy="509" r="6.5" fill="#8b3a3a" opacity="0.85"/>
+
+  <!-- Legend at bottom -->
+  <circle cx="340" cy="540" r="6"  fill="#2a5a72" opacity="0.88"/>
+  <text x="351" y="544" font-size="11" fill="#4a4a4a">COGCC run</text>
+  <circle cx="430" cy="540" r="6"  fill="#8b3a3a" opacity="0.88"/>
+  <text x="441" y="544" font-size="11" fill="#4a4a4a">KGS run</text>
+  <text x="530" y="544" font-size="10" fill="#6b6459" font-style="italic">Circle size scales with loops stuck in that run</text>
+</svg>

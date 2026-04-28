@@ -160,6 +160,8 @@ Error-to-run mapping for early runs is approximate — test names changed across
 | KGS-E | KGS | 2026-04-23 | 7 | 16m 41s | features: cumulative/decline/rolling; ingest: empty file returns; pipeline: logging handlers, stage ordering | est. 18, 19, 21, 22, 23 | — |
 | KGS-F (Opus) | KGS | 2026-04-23 | 7 | 27m 42s | see loop detail below | 22–26, recurring 17 | 4.6M / $7.10 (91% cache) |
 | COGCC-4 | COGCC | 2026-04-24 | 12 | 54m 17s | see loop detail below | recurring 10/22/13; type errors in ingest/features/transform | 14.1M / $11.60 (94% cache) |
+| COGCC-5 | COGCC | 2026-04-27 | 4 | 23m 23s | see loop detail below | recurring 13 (pd.NA/float); CategoricalDtype null values → Arrow cast failure | — |
+| KGS-G | KGS | 2026-04-27 | 6 (2 false) | 37m active / 3h total | see loop detail below | recurring 17 (build backend); BS4 NavigableString (Error 11 class); 2 false loops (cancel/resume) | — |
 
 **Recurrence rate to date:** 3 recurrence events (errors 10, 22 as ≡ #4 class; error 17 returning in KGS-F; error 13 float/NA regression in COGCC-4 loop 8) out of 26 total error instances = ~12% recurrence rate by error count.  
 **Recurrence rate by run:** 2 runs (KGS-F, COGCC-4) had recurring errors out of 10 logged runs (4 COGCC + 6 KGS) = 20% of runs had at least one recurrence.  
@@ -179,6 +181,8 @@ Error-to-run mapping for early runs is approximate — test names changed across
 | KGS-E | 7 | 16m 41s | 2m 23s |
 | KGS-F | 7 | 27m 42s | 3m 58s |
 | COGCC-4 | 12 | 54m 17s | 4m 31s |
+| COGCC-5 | 4 | 23m 23s | 5m 51s |
+| KGS-G | 6 | 37m active | 7m 28s (active loops) |
 
 ### COGCC-1 Eval Loop Detail (2026-04-05)
 
@@ -307,6 +311,42 @@ Total eval window: 05:52:17 → 06:46:34 (54m 17s). 12 loops — orchestrator 6-
 - 12 loops: orchestrator ran 6 loops past its stated limit with no human escalation — rule not enforced.
 - No Install failure: build backend (constraint 17) and Python binary (constraint 26) were correct in this run — both constraints held.
 
+### COGCC-5 Eval Loop Detail (2026-04-27)
+
+Total eval window: 12:59:18 → 13:22:41 (23m 23s). 4 loops.
+
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 12:59:18 | ❌ | Linting (F841 `schema` in test_transform.py) + type check + unit (19 failed: acquire x1, features cumulative x3, ingest dtype x8 including float null pd.NA and categorical, transform dedup x4) + integration (ArrowNotImplementedError: WellStatus CategoricalDtype values=null → Arrow cast fails; pipeline stage 'ingest' failed: bool-like values error) | 10m 28s |
+| 2 | 13:09:46 | ❌ | Type check + unit (4: features cumulative x3 + ingest dtype spot check) + integration (1: test_download_file_real_download) | 9m 14s |
+| 3 | 13:19:00 | ❌ | Type check + unit (same 4 as loop 2 — no progress) | 3m 41s |
+| 4 | 13:22:41 | ✅ | — | — |
+
+**Key observations:**
+- Loop 1 integration failure: `WellStatus` CategoricalDtype with values=null — bare `CategoricalDtype()` in ingest maps each file's unique category set → Parquet merge fails with `ArrowNotImplementedError: Unsupported cast from large_string to null`. Same root cause as H5 fix applied to KGS (CategoricalDtype → StringDtype in ingest).
+- Loop 3 = zero progress on same 4 failures as loop 2 (features cumulative + ingest dtype spot check — coder-basic hit its scope limit on these complex failures before coder-advanced resolved them in loop 4).
+- Constraint 17 (build backend) and constraint 26 (Python binary) both held — no Install failure.
+
+### KGS-G Eval Loop Detail (2026-04-27)
+
+Total eval window: 19:17:33 → 22:20:31 (3h 3m including ~2.5h billing pause). Active eval (loops 1–5): 19:17:33 → 19:54:51 (37m 18s).
+
+| Loop | Time | Status | Failures | Duration to next |
+|---|---|---|---|---|
+| 1 | 19:17:33 | ❌ | Install: build backend error — `setuptools.backends.legacy:build` not found (Error 17 recurring) | 3m 59s |
+| 2 | 19:21:32 | ❌ | Linting (F841 x2: test_ingest, test_pipeline) + type check (5 errors: features.py NumpyExtensionArray.clip, acquire.py BS4 NavigableString, pipeline.py Callable type x3) + unit (20 failed) + integration | 16m 41s |
+| 3 | 19:38:13 | ❌ | Linting (F841 x1: test_ingest) + type check (1: NumpyExtensionArray.clip in features.py:98) + unit (21 failed: decline_rate x6, apply_features x3, features x5, pipeline x1, transform x5) + integration | 7m 55s |
+| 4 | 19:46:08 | ❌ | Integration: 0 tests selected — false loop (coder-advanced cancelled mid-fix; orchestrator resume-from-evaluator rule triggered eval without new code) | 8m 43s |
+| 5 | 19:54:51 | ❌ | Integration: 0 tests selected — false loop (same) | ~2h 25m (API billing depleted; manual top-up + server restart) |
+| 6 | 22:20:31 | ✅ | — | — |
+
+**Key observations:**
+- Loop 1: Error 17 recurring — constraint marked ✅ (held in COGCC-4) but failed here; constraint may need further hardening or KGS task-writer regeneration is needed to pick it up.
+- Loop 2→3 gap = 16m 41s — multi-error fix covering linting, type check, and unit failures simultaneously.
+- Loop 3 decline_rate failures: `NumpyExtensionArray.clip` type error prevented the clip-based fix from working cleanly; underlying all-null bug (Error 31: `pd.Series` without `index=df.index`) not caught by unit tests — unit fixtures used RangeIndex DataFrames.
+- Loops 4–5: 2 wasted loops — `resume-from-evaluator` orchestrator rule triggered on a cancelled coder-advanced call; 0 tests selected because integration marker was misconfigured after mid-run state. Rule removed from orchestrator.md after this run.
+- ~2.5h gap before loop 6: Anthropic API billing depleted during run; required manual balance top-up and LangGraph server restart.
+
 ---
 
 ## Overfitting Problem and Second Context Refactoring
@@ -341,3 +381,13 @@ Example — global: "Parallelization of per-file reads must produce one delayed 
 4. **When ADR and task spec conflict, ADR wins** — this must be stated explicitly in coder-advanced.md pre-flight. Currently the coder follows the more specific instruction (task spec) without checking for ADR conflicts.
 
 5. **Constraints must be tested against both pipelines before being considered stable** — a constraint is not validated until it has been exercised in a successful agent run on both COGCC and KGS without regression in the other.
+
+### Prospective Layer: model-behavior-constraints.md (added 2026-04-27)
+
+Where the second refactoring fixed the *authority hierarchy* (who wins when task spec and ADR conflict), a complementary document addresses the *timing problem*: by the time a recurring error surfaces in an eval loop, a full coder invocation has already been spent on it. `agent_docs/model-behavior-constraints.md` gives the orchestrator 9 failure patterns to scan for **before** delegating to task-writer — so preventive constraints can be added to the spec rather than discovered at eval time.
+
+The 9 patterns (all derived from the error table): discovery injection, dependency activation, scope-to-full-pattern, prior-driven concretization, task decomposition gaps, meta construction, performance without scale, silent dtype loss, and test fixture mismatch. Each entry has a trigger condition (what in the spec signals risk) and a preventive measure (what constraint to add before the run).
+
+This does not replace the authority hierarchy — it adds a pre-delegation scan layer on top of it. The document is read by the orchestrator before every task-writer delegation; it is not consumed by the coder.
+
+The document was added after COGCC-4's 12-loop run exceeded the 6-loop limit — indicating that known recurring error classes were being re-encountered rather than anticipated. The prospective layer is the mechanism for breaking that cycle.

@@ -1,0 +1,121 @@
+<svg viewBox="0 0 1020 400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: Georgia, 'Times New Roman', serif; }
+    .ax  { font-size: 10px; fill: #6b6459; }
+    .lbl { font-size: 10px; }
+    .dur { font-size: 9.5px; fill: #6b6459; }
+  </style>
+
+  <rect width="1020" height="400" fill="#f7f4ee"/>
+
+  <!-- Title -->
+  <text x="510" y="26" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Eval loops to first pass, per run</text>
+  <text x="510" y="42" font-size="10.5" fill="#6b6459" text-anchor="middle" font-style="italic">Bar height = loops to pass. Color = pipeline. COGCC-4 exceeded the 6-loop cap (now enforced).</text>
+
+  <!-- Y gridlines at 3, 6, 9, 12 -->
+  <line x1="44" y1="296" x2="980" y2="296" stroke="#e0dbd0" stroke-width="0.8" stroke-dasharray="2,3"/>
+  <line x1="44" y1="236" x2="980" y2="236" stroke="#e0dbd0" stroke-width="0.8" stroke-dasharray="2,3"/>
+  <line x1="44" y1="176" x2="980" y2="176" stroke="#e0dbd0" stroke-width="0.8" stroke-dasharray="2,3"/>
+  <line x1="44" y1="116" x2="980" y2="116" stroke="#e0dbd0" stroke-width="0.8" stroke-dasharray="2,3"/>
+
+  <!-- Y axis -->
+  <line x1="44" y1="56" x2="44" y2="356" stroke="#c8c0b4" stroke-width="1"/>
+  <line x1="44" y1="356" x2="980" y2="356" stroke="#c8c0b4" stroke-width="1"/>
+  <text x="36" y="359" class="ax" text-anchor="end">0</text>
+  <text x="36" y="299" class="ax" text-anchor="end">3</text>
+  <text x="36" y="239" class="ax" text-anchor="end">6</text>
+  <text x="36" y="179" class="ax" text-anchor="end">9</text>
+  <text x="36" y="119" class="ax" text-anchor="end">12</text>
+  <text x="16" y="210" class="ax" text-anchor="middle" transform="rotate(-90,16,210)">Eval loops</text>
+
+  <!-- 6-loop cap line -->
+  <line x1="44" y1="236" x2="980" y2="236" stroke="#7a3a3a" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.7"/>
+  <text x="982" y="236" font-size="9" fill="#7a3a3a" dominant-baseline="middle">cap</text>
+
+  <!-- Bars: 12 runs, spacing=76, bar_width=52, x0=60
+       bar_h = loops * 20, y_top = 356 - bar_h
+       COGCC=#2a5a72  KGS=#8b3a3a
+       runs: COGCC-1(5), COGCC-2(4), COGCC-3(3), KGS-A(6), KGS-B(3), KGS-C(5),
+             KGS-D(3), KGS-E(7), KGS-F(7), COGCC-4(12), COGCC-5(4), KGS-G(6)
+  -->
+
+  <!-- COGCC-1: 5 loops, 46m, COGCC color -->
+  <rect x="60"  y="256" width="52" height="100" fill="#2a5a72" opacity="0.85"/>
+  <text x="86"  y="254" class="ax" text-anchor="middle">5</text>
+  <text x="86"  y="371" class="lbl" fill="#2a5a72" text-anchor="middle">COGCC-1</text>
+  <text x="86"  y="383" class="dur" text-anchor="middle">46m</text>
+
+  <!-- COGCC-2: 4 loops, 46m -->
+  <rect x="136" y="276" width="52" height="80"  fill="#2a5a72" opacity="0.85"/>
+  <text x="162" y="274" class="ax" text-anchor="middle">4</text>
+  <text x="162" y="371" class="lbl" fill="#2a5a72" text-anchor="middle">COGCC-2</text>
+  <text x="162" y="383" class="dur" text-anchor="middle">46m</text>
+
+  <!-- COGCC-3: 3 loops, 64m -->
+  <rect x="212" y="296" width="52" height="60"  fill="#2a5a72" opacity="0.85"/>
+  <text x="238" y="294" class="ax" text-anchor="middle">3</text>
+  <text x="238" y="371" class="lbl" fill="#2a5a72" text-anchor="middle">COGCC-3</text>
+  <text x="238" y="383" class="dur" text-anchor="middle">1h 4m</text>
+
+  <!-- KGS-A: 6 loops, 30m -->
+  <rect x="288" y="236" width="52" height="120" fill="#8b3a3a" opacity="0.85"/>
+  <text x="314" y="234" class="ax" text-anchor="middle">6</text>
+  <text x="314" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-A</text>
+  <text x="314" y="383" class="dur" text-anchor="middle">30m</text>
+
+  <!-- KGS-B: 3 loops, 33m -->
+  <rect x="364" y="296" width="52" height="60"  fill="#8b3a3a" opacity="0.85"/>
+  <text x="390" y="294" class="ax" text-anchor="middle">3</text>
+  <text x="390" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-B</text>
+  <text x="390" y="383" class="dur" text-anchor="middle">33m</text>
+
+  <!-- KGS-C: 5 loops, 38m -->
+  <rect x="440" y="256" width="52" height="100" fill="#8b3a3a" opacity="0.85"/>
+  <text x="466" y="254" class="ax" text-anchor="middle">5</text>
+  <text x="466" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-C</text>
+  <text x="466" y="383" class="dur" text-anchor="middle">38m</text>
+
+  <!-- KGS-D: 3 loops, 17m -->
+  <rect x="516" y="296" width="52" height="60"  fill="#8b3a3a" opacity="0.85"/>
+  <text x="542" y="294" class="ax" text-anchor="middle">3</text>
+  <text x="542" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-D</text>
+  <text x="542" y="383" class="dur" text-anchor="middle">17m</text>
+
+  <!-- KGS-E: 7 loops, 17m -->
+  <rect x="592" y="216" width="52" height="140" fill="#8b3a3a" opacity="0.85"/>
+  <text x="618" y="214" class="ax" text-anchor="middle">7</text>
+  <text x="618" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-E</text>
+  <text x="618" y="383" class="dur" text-anchor="middle">17m</text>
+
+  <!-- KGS-F: 7 loops, 28m -->
+  <rect x="668" y="216" width="52" height="140" fill="#8b3a3a" opacity="0.85"/>
+  <text x="694" y="214" class="ax" text-anchor="middle">7</text>
+  <text x="694" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-F</text>
+  <text x="694" y="383" class="dur" text-anchor="middle">28m</text>
+
+  <!-- COGCC-4: 12 loops — OVER CAP, COGCC color with warning -->
+  <rect x="744" y="116" width="52" height="240" fill="#2a5a72" opacity="0.85"/>
+  <rect x="744" y="116" width="52" height="240" fill="#c44" opacity="0.18"/>
+  <text x="770" y="114" class="ax" text-anchor="middle" fill="#7a2020" font-weight="bold">12 ⚠</text>
+  <text x="770" y="371" class="lbl" fill="#2a5a72" text-anchor="middle">COGCC-4</text>
+  <text x="770" y="383" class="dur" text-anchor="middle">54m</text>
+
+  <!-- COGCC-5: 4 loops, 23m -->
+  <rect x="820" y="276" width="52" height="80"  fill="#2a5a72" opacity="0.85"/>
+  <text x="846" y="274" class="ax" text-anchor="middle">4</text>
+  <text x="846" y="371" class="lbl" fill="#2a5a72" text-anchor="middle">COGCC-5</text>
+  <text x="846" y="383" class="dur" text-anchor="middle">23m</text>
+
+  <!-- KGS-G: 6 loops (2 false), 37m active — same color/opacity as other KGS bars -->
+  <rect x="896" y="236" width="52" height="120" fill="#8b3a3a" opacity="0.85"/>
+  <text x="922" y="234" class="ax" text-anchor="middle">6†</text>
+  <text x="922" y="371" class="lbl" fill="#8b3a3a" text-anchor="middle">KGS-G</text>
+  <text x="922" y="383" class="dur" text-anchor="middle">37m*</text>
+
+  <!-- Legend -->
+  <rect x="330" y="408" width="12" height="12" fill="#2a5a72" opacity="0.85"/>
+  <text x="347" y="419" font-size="11" fill="#4a4a4a">COGCC runs</text>
+  <rect x="440" y="408" width="12" height="12" fill="#8b3a3a" opacity="0.85"/>
+  <text x="457" y="419" font-size="11" fill="#4a4a4a">KGS runs</text>
+  <text x="180" y="419" font-size="9.5" fill="#6b6459" font-style="italic">† includes 2 false loops (cancelled/resume) · * active eval time; 3h total including 2.5h billing pause</text>
+</svg>

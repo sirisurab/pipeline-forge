@@ -1,74 +1,112 @@
 # pipeline-forge
-**Agentic system that generates tested, production-ready O&G data pipelines from a plain-English spec.**
 
-Tested on two oil and gas production datasets — Kansas Geological Survey and Colorado ECMC — different data sources, same agent, same quality bar.
+*Agentic system that generates tested O&G data pipelines from a plain-English spec.*
+
+![Python](https://img.shields.io/badge/Python-3.11+-blue) ![Dask](https://img.shields.io/badge/Dask-distributed-orange) ![Claude](https://img.shields.io/badge/Claude-Anthropic-purple)
 
 ---
 
 ## What Was Built
 
-The pipeline covers four stages: data acquisition, ingestion (Dask), transformation and cleaning with domain-specific validation, and feature engineering (decline curves, rolling stats, GOR). Output is Parquet partitioned by well ID, ready for ML workflows.
+A four-stage data pipeline covering acquisition, ingestion, transformation, and feature engineering for oil and gas well production data — built entirely by an agentic system from a plain-English spec. Output is Parquet partitioned by well ID, validated against domain-specific correctness criteria, and ready for ML workflows. Features include per-well decline curves, cumulative production tracking, rolling statistics, and GOR computations across 1–5M row datasets.
 
-Architecture: an orchestrator delegating to three specialized subagents — task-writer (designs component specifications), coder-advanced (implements from specs), coder-basic (applies targeted fixes) — with a deterministic evaluator (ruff, mypy, pytest) closing the feedback loop.
+The framework generalizes: onboarding a new data source requires only a short project spec file and a test requirements file — no changes to the agent itself.
 
-The framework generalizes: onboarding a new data source requires a short project spec file and a test requirements file — no changes to the agent itself. That is the core of what makes this operationally useful — not just for oil and gas pipelines, but for any operation where data from multiple sources needs to be reliably integrated, validated, and kept current.
+### Architecture
 
----
+```
+orchestrator
+  ├── reads TaskIndex.md, routes errors, enforces 6-loop cap
+  ├── task-writer        (Claude Sonnet)
+  │     reads: project spec + test requirements + agent_docs/
+  │     writes: TaskIndex.md + tasks/*.md
+  ├── coder-advanced     (Claude Sonnet)
+  │     scope: complex failures — integration, meta/schema, cross-stage
+  ├── coder-basic        (Claude Haiku)
+  │     scope: local, single-file — linting, type errors, simple unit failures
+  └── evaluator          (deterministic)
+        ruff + mypy + pytest → passed / failures / blockers
+```
 
-## Two Architectures
+Context is isolated per subagent. `agent_docs/` holds the authoritative governance layer — ADRs, stage manifests, boundary contracts, build-env-manifest — read by all agents before every run. The orchestrator is the sole coordinator; subagents do not share conversation history. Human-in-the-loop approval gates each git commit.
 
-The system above wasn't the starting point. The first version was a lower-level LangGraph graph with custom context trimming and custom routing. Things broke repeatedly, and fixing each problem built an intuition for how LLMs actually work that is hard to get any other way.
-
-![v1 architecture](architecture_v1.png)
-
-Two lessons stood out. First, LLMs don't think top-down the way humans do. They don't need to progress from requirements → architecture → design → code. Working from priors and current context, they can go directly from requirements → tasks → code — often in parallel. Intermediate design artifacts that would be essential for a human team are often just expensive tokens for an LLM. Second, context bloat is a constant problem. Read and write tool calls append file content to the message history, and stale tool call inputs and outputs accumulate silently. Learning what to keep and what to trim — and when — is one of the core LLM engineering skills.
-
-Switching to deepagents with an orchestrator→subagents architecture addressed context bloat more cleanly than the custom trimming approach: automatic context offloading, filesystem abstraction, subagent context isolation. The codebase also shrank significantly without custom routing and middleware. The tradeoff was less control and more abstraction — which made LangSmith trace analysis essential for understanding what was actually happening inside runs.
-
-![v2 architecture](architecture_v2.png)
-
----
-
-## Generalizing to a Second Dataset
-
-The initial build targeted a single data source. The question was whether the same agent could handle a different one without changes to the agent itself. The second dataset was Colorado ECMC (Energy & Carbon Management Commission) well production data — different schema, different download pattern (bulk CSV zip vs per-lease HTTP scrape), different date format. Onboarding required writing two files: task-writer-cogcc.md (dataset description, download instructions, domain constraints) and test-requirements-cogcc.xml (schema completeness check with ECMC column names). No agent code changed.
-The COGCC pipeline processed 4.3M rows across all four stages. KGS processed 1.2M. Both passed the same eval gates on the fifth iteration. The framework for adding a third data source is the same two-file process.
-
----
-
-## Performance Guardrails — Keeping the Big Picture
-
-The agent gets tasks done reliably. What it doesn’t do is hold system-level objectives across tasks — that’s not how LLMs work. Each task is solved in its own context. The result, in this case, was a pipeline that used Dask correctly at the function level but missed the bigger requirement: this is a parallel processing pipeline where memory and latency matter. Sequential computes, single-partition loads, sort before shuffle — each individually reasonable, collectively a problem at scale.
-The fix was encoding the system-level requirements as explicit constraints in task-writer.md. Vectorised operations only. Batch computes. Repartition before write. Sort after shuffle. What looked like an agent limitation is really a prompt engineering problem. This applies to any agentic system working on complex, multi-step tasks — not just data pipelines.
+| Pipelines tested | Agent runs logged | Distinct errors documented | Context words added | Rows processed |
+|:---:|:---:|:---:|:---:|:---:|
+| 2 | 13 | 31 | ~1,600 | 5.6M+ |
 
 ---
 
-## Open Problems
+## Testing Methodology and Error Analysis
 
-**Test quality — baseline established, gaps known.** Each pipeline is validated against two layers of quality checks: deterministic gates (linting, type checking, unit tests) and a separate LLM-as-judge evaluation that assesses whether the tests cover the domain correctly — not just whether the code runs.
+Both pipelines — KGS (Kansas Geological Survey, 1.2M rows) and COGCC (Colorado ECMC, 4.3M rows) — were tested across multiple agent runs. Each run triggered the eval loop: ruff, mypy, and pytest against a domain-specific test suite. Every failure was documented: root cause, manual fix, and the constraint added to the agent's context files. Testing deliberately alternated between pipelines to check generalization — a constraint earned on COGCC was tested on KGS, and vice versa.
 
-*Test quality:* 80% across all stages except acquire (70%) — tests cover edge cases and avoid trivial assertions
+### Error abstraction level over time
 
-*Structural correctness:* 80% across all four stages — Dask laziness, schema validation, partition structure
+![Error abstraction level over time](chart_abstraction_levels.svg)
 
-*Domain correctness:*
-80% for acquire, ingest, and feature-extraction stages. 
-60% for KGS transform stage — the tests don't fully cover physical bounds validation, water cut boundary values, and the zero-vs-null distinction after transformation. COGCC eval scores pending.
+*Each point is one error. The vertical axis classifies by reasoning level required to fix it. The first phase (errors 1–17) is dominated by implementation-level bugs — wrong API, wrong value. Beginning at error 18, errors originated in the task specifications the writing agent produces, not in the code the coding agent generates. Fixing them required understanding how instructions are read, not how code runs.*
 
-The gap is in the test specification — not the code.
+### Eval loops to first pass, per run
 
-**Run-to-run reliability is work in progress.** KGS and COGCC both passed on the fifth eval-fix iteration. Not enough runs across configurations to characterize cost variance or failure modes at scale.
+![Eval loops to first pass per run](chart_eval_loops.svg)
 
-**Data security and governance are not addressed.** Public KGS and COGCC data only. No authentication, no data governance, no client constraints.
+*COGCC-4 ran 12 loops — the orchestrator did not enforce its 6-loop escalation rule. The cause was a state-recovery rule that re-triggered evaluation on cancelled agent states. Both the cap enforcement and the recovery rule were corrected after that run. COGCC-5 (4 loops) and KGS-G (6 loops active) reflect the corrected orchestrator.*
+
+### Test-class recurrence across eval runs
+
+![Test-class recurrence across eval runs](chart_test_recurrence.svg)
+
+*At the test-class level — grouping errors by failure category — 6 of 8 clusters appeared in both pipelines, and approximately 73% of all eval loops involved a class that had already been seen in a prior run. This gap between a low headline recurrence rate and a high loop-level recurrence rate was the primary motivation for the second context refactor.*
 
 ---
 
-## Next
+## What Error Patterns Revealed
 
-Next data source is Texas RRC (Railroad Commission) — EBCDIC format, different schema, more complex acquire. The generalization framework is in place; RRC will test how much of the constraint set transfers versus what needs to be learned again. Longer term: systematic experiments varying agent configuration — model choice, context limits, constraint specificity — with judge scores alongside cost and iteration count as outcome metrics.
+### First context refactor — fixing localized focus
+
+The earliest errors had a consistent shape: the coding agent solved each task correctly in isolation but failed to reason about cross-stage effects. Partition counts weren't propagated across stage boundaries. Sort order was destroyed because shuffle happened after sort. The distributed scheduler was applied to an I/O-bound stage that needed threads. Each function was correct; the pipeline was not.
+
+The fix was encoding the system-level view the agent was missing: stage manifests defining what each stage must guarantee, boundary contracts defining what the next stage can rely on, and ADRs governing cross-cutting decisions. After this refactor, cross-stage errors stopped recurring.
+
+### The overfitting problem
+
+Because testing alternated between two pipelines, constraints tended to be shaped by whichever pipeline was most recently tested. A fix written after a COGCC failure was concrete enough to prevent that specific error but not abstract enough to cover the same failure class in KGS — and vice versa. The constraint set grew larger and more internally inconsistent without actually converging.
+
+> A constraint that prevents an error in both pipelines without referencing either pipeline's specific column names or file structure — that is what a stable constraint looks like. Intent-level, not example-level.
+
+The second context refactor restructured the authority hierarchy: ADRs own all constraints, stage manifests own stage-specific patterns, task specs reference but never define. When task spec and ADR conflict, ADR wins — stated explicitly in the coder pre-flight.
+
+### Model behavior patterns
+
+Studying the second half of the error log revealed a different class of problem: predictable failure modes in the task-writing agent itself. The same patterns appeared across runs, triggered by identifiable structures in the spec — not by ambiguous data or missing context. When a task spec was silent on how something should be done but failed to cite the governing document, the coding agent filled the gap with a training prior rather than consulting the ADR. When the task spec and an ADR said different things, the coder followed the more specific instruction — the task spec — even when the ADR was authoritative. When the spec provided explicit URL templates, the task-writer added an index-scraping discovery step anyway, reasoning about robustness rather than following the spec.
+
+These are not one-off bugs. They are consistent behaviors that can be anticipated from the shape of the spec before a run starts. The response was a new document — `model-behavior-constraints.md` — that gives the orchestrator nine failure patterns to scan for before delegating to task-writer, so preventive constraints can be added to the spec rather than discovered at eval time.
+
+### Context as governance
+
+| Document | Read by | Governs |
+|---|---|---|
+| `ADRs.md` | all agents | Dtype rules, partitioning, meta derivation, scheduler strategy, vectorization |
+| `stage-manifest-*.md` | task-writer, coder-advanced | What each stage must guarantee at its input and output boundaries |
+| `boundary-*.md` | task-writer, coder-advanced | What upstream stages deliver; what downstream stages can rely on |
+| `build-env-manifest.md` | task-writer, coder-advanced | Build system, config structure, Makefile rules, scheduler initialization |
+| `coding-patterns.md` | all coders | Cross-cutting implementation patterns — type narrowing, dtype preservation, test semantics |
+| `model-behavior-constraints.md` | orchestrator | Nine failure patterns to scan for *before* delegating to task-writer |
+
+---
+
+## Open Problems and Next
+
+- **Two errors found by manual end-to-end testing after eval passed.** Non-monotonic cumulative production (from Revised-report deduplication) and an all-null decline rate feature (from a `pd.Series` index alignment issue) both slipped past the automated gate. Neither had a test that exercised the failure condition. Both gaps are now in the test requirements file.
+
+- **Run-to-run reliability is improving but not yet characterized.** Loop counts dropped meaningfully after the second refactor. Formal characterization across model configurations and constraint specificity levels requires more runs.
+
+- **The 6-loop cap is enforced; mid-run recovery on cancellation is not fully addressed.** KGS-G had two wasted loops from a state recovery rule that fired on a cancelled agent. The rule was removed; general interruption recovery is still fragile.
+
+- **Next: Texas RRC (Railroad Commission).** EBCDIC format, different schema, more complex acquire pattern. Onboarding requires two files — a project spec and a test requirements file. The interesting measurement is how much of the existing constraint set transfers versus what needs to be relearned. That is the real test of generalization.
 
 ---
 
 ## Stack
 
-Python · Dask · LangGraph · Claude (Anthropic) · KGS Kansas · COGCC Colorado
+Python · Dask · deepagents · Claude Sonnet (task-writer, coder-advanced) · Claude Haiku (coder-basic) · KGS Kansas · COGCC Colorado
