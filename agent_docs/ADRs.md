@@ -51,6 +51,10 @@ the start — not optimized after correctness is established.
 → When choosing between vectorized approaches, prefer in this order: built-in
   vectorized operations first, grouped transformations second, row-wise
   application only as a last resort when no vectorized alternative exists.
+→ String column transformations must use vectorized str accessor methods
+  (str.extract, str.contains, str.replace, etc.) — .map() with a Python
+  function on a string column is not a valid last resort. The str accessor
+  is the vectorized path for string operations.
 
 ---
 
@@ -86,6 +90,9 @@ schema information is inferred from the data itself.
 → Dask metadata must accurately reflect the actual output schema in column
   names, column order, and data-types — a mismatch causes silent wrong results or
   runtime errors at compute time.
+→ Float null sentinel for float64 columns is np.nan, not pd.NA. pd.NA is
+  valid only for nullable extension types (Int64, StringDtype, CategoricalDtype).
+  Using pd.NA to fill a float64 column raises TypeError at compute time.
 
 ---
 

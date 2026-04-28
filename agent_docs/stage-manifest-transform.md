@@ -40,3 +40,10 @@ no operation after repartition may alter partition structure.
 
 **H4:** `set_index` must be the last structural operation before writing — all
 operations that reference the entity column must complete before `set_index` is called.
+
+**H5:** Deduplication must key on the entity index column plus the date column,
+applied after set_index. A bare drop_duplicates() with no subset is never correct
+for time-series pipeline data with revision patterns — it only removes rows that
+are identical on every column, which is never the case for revised production
+reports. The tie-breaking rule for duplicate (entity, date) rows is defined in
+the project task-writer file.

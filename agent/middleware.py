@@ -1,13 +1,15 @@
 from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRetryMiddleware
-from anthropic import RateLimitError, APIStatusError, APITimeoutError
+from anthropic import RateLimitError, APIStatusError, APITimeoutError, APIConnectionError
 from deepagents.middleware.summarization import SummarizationMiddleware, SummarizationToolMiddleware
 from deepagents.backends import FilesystemBackend
 from agent.config import repo_root, summarization_model
 from langchain_anthropic import ChatAnthropic
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+import httpx
 from openai import RateLimitError as OpenAIRateLimitError
 from openai import APITimeoutError as OpenAITimeoutError
 from openai import APIStatusError as OpenAIStatusError
+from openai import APIConnectionError as OpenAIConnectionError
 
 backend = FilesystemBackend(root_dir=repo_root, virtual_mode=True)
 
@@ -27,15 +29,17 @@ def should_retry(error: Exception) -> bool:
         return True
     if isinstance(error, APITimeoutError):
         return True
+    if isinstance(error, APIConnectionError):
+        return True
     if isinstance(error, APIStatusError):
         return getattr(error, 'status_code', 0) in (429, 529)
 
-    # Google (Gemini) — ResourceExhausted is 429, ServiceUnavailable is 503
-    if isinstance(error, (ResourceExhausted, ServiceUnavailable)):
+    # Google (Gemini) — ResourceExhausted is 429, ServiceUnavailable is 503, TransportError is network drop
+    if isinstance(error, (ResourceExhausted, ServiceUnavailable, httpx.TransportError)):
         return True
 
     # OpenAI-compatible (DeepSeek)
-    if isinstance(error, (OpenAIRateLimitError, OpenAITimeoutError)):
+    if isinstance(error, (OpenAIRateLimitError, OpenAITimeoutError, OpenAIConnectionError)):
         return True
     if isinstance(error, OpenAIStatusError):
         return getattr(error, 'status_code', 0) in (429, 503, 529)

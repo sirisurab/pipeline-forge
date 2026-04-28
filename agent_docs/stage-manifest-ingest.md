@@ -44,3 +44,13 @@ names and dtypes is a valid schema-conformant output.
   Its absence indicates a structural problem with the source file.
 
 These two cases must never be collapsed into a single missing column handler.
+
+**H4:** Parallelization of per-file reads must produce one delayed DataFrame per
+file. The mechanism must guarantee each delayed unit computes to a DataFrame, not
+a collection. Dask bag partitions compute to lists and cannot be passed to
+dd.from_delayed — do not use Dask bag for per-file parallelization.
+
+**H5:** Categorical columns use `pd.StringDtype()` in ingest.
+Columns defined as categorical in the data dictionary are read and written as
+`pd.StringDtype()` at the ingest stage. The transform stage applies
+`CategoricalDtype(categories=[...])` with declared category sets.

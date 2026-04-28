@@ -15,3 +15,22 @@ When mypy reports `[union-attr]`, `[index]`, or `[operator]` on a value of union
 `isinstance` narrowing to establish the specific type before the operation. These errors
 cannot be suppressed with `# type: ignore` — they indicate a genuine runtime risk that must
 be resolved with a code fix.
+
+---
+
+## Test Assertion Semantics for NumPy and pandas Types
+
+When asserting boolean values on numpy scalars or pandas Series:
+- Never use `is True` / `is False` — numpy scalar types are not Python bool instances;
+  identity checks fail even when equality holds. Use `== True` / `== False` or cast to
+  Python bool.
+- Never use `== False` on a pandas Series — ruff E712 flags this. Use `~series`
+  (bitwise not) for boolean Series negation.
+
+---
+
+## Test Variable Discipline
+
+Assign variables in test bodies only if they are referenced in at least one assertion.
+Assignments that are never read produce ruff F841 errors. Use expressions directly in
+assertions where the value is not reused.

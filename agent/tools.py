@@ -49,8 +49,20 @@ def commit_git(comment: str) -> str:
     Output of git command if it succeeds
     """  # noqa: E501
 
+    # Stage everything in the working directory (modifications, new files, deletions)
+    # so the commit atomically reflects the exact state that passed eval — including
+    # files deleted by the cleanup script that subagents never explicitly staged.
+    add_result = subprocess.run(
+        ["git", "add", "-A"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    if add_result.returncode != 0:
+        return f"ERROR: git add -A failed with {add_result.stderr}"
+
     result = subprocess.run(
-        ["git", "commit", "-m", comment],  # ← pass as list, not string
+        ["git", "commit", "-m", comment],
         cwd=repo_root,
         capture_output=True,
         text=True

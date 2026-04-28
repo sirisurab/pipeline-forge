@@ -1,5 +1,4 @@
 from pathlib import Path
-from agent.tools import stage_and_check_git
 from agent.middleware import task_writer_limit_mw, coder_limit_mw, retry_mw
 from agent.config import task_writer_model, coder_advanced_model, coder_basic_model, project as _project
 from langchain_anthropic import ChatAnthropic
@@ -17,7 +16,7 @@ task_writer = {
         to be written. Returns a summary of files written.
     """),
     "system_prompt": task_writer_prompt,
-    "tools": [stage_and_check_git],
+    "tools": [],
     "model": ChatAnthropic(model=task_writer_model, timeout=300),
     "middleware" : [task_writer_limit_mw, retry_mw]
 }
@@ -31,7 +30,7 @@ coder_advanced = {
         and test files. Returns a summary of files written.
     """),
     "system_prompt": coder_advanced_prompt,
-    "tools": [stage_and_check_git],
+    "tools": [],
     "model": ChatAnthropic(model=coder_advanced_model, timeout=300),
     "middleware" : [coder_limit_mw, retry_mw]
 }
@@ -45,7 +44,7 @@ coder_basic = {
         Returns a summary of fixes applied.
     """),
     "system_prompt": coder_basic_prompt,
-    "tools": [stage_and_check_git],
+    "tools": [],
     "model": ChatAnthropic(model=coder_basic_model, timeout=300),
     "middleware" : [coder_limit_mw, retry_mw]
 }

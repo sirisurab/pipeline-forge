@@ -85,8 +85,11 @@ logging:
 
 ## Dask scheduler initialization
 
-The pipeline entry point initializes the distributed scheduler after acquire
-completes and before ingest begins. Scheduler type is determined by config.yaml:
+The distributed scheduler must be initialized before any Dask stage (ingest,
+transform, features) runs, conditioned on at least one Dask stage being present
+in the current invocation. It must not be initialized inside the acquire branch —
+acquire uses the threaded scheduler and does not require a distributed cluster.
+Scheduler type is determined by config.yaml:
 - If dask.scheduler is "local" → initialize a local distributed cluster with
   settings from the dask section of config.yaml
 - If dask.scheduler is a URL → connect to the remote scheduler at that address

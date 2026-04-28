@@ -129,6 +129,7 @@ this file has been read.
 Before writing task specs for each stage, read the relevant files from `/agent_docs/`:
 
 Always read:
+- `/agent_docs/model-behavior-constraints.md`
 - `/agent_docs/ADRs.md`
 - `/agent_docs/build-env-manifest.md`
 
@@ -216,17 +217,26 @@ every path.
 For every task in every component's task spec, the Definition of Done must explicitly
 include: *"requirements.txt updated with all third-party packages imported in this task."*
 
+## URL and File Path Construction Constraint
+
+When a project spec provides explicit URL templates, file paths, or naming patterns,
+construct them directly — do not add discovery, scraping, or index traversal unless
+the spec explicitly requires it. The presence of an HTML parsing library in the build
+environment does not imply a discovery step is needed. If URLs are fully specified,
+the acquire spec must state that directly and must not add a function to discover them.
+
+## Dependency Scope Constraint
+
+Do not invent uses for libraries listed in build-env-manifest.md beyond what the spec
+explicitly requires. A library listed as an acquire dependency is available — its
+presence is not a signal to add functionality that uses it. Capability does not imply
+requirement.
+
 ## Completion Constraints
 
 After all task files and `TaskIndex.md` are successfully written:
 
-1. Call `stage_and_check_git` to stage all files changed in the run at one go:
-   ```
-   stage_and_check_git("git add TaskIndex.md tasks/acquire_tasks.md tasks/ingest_tasks.md tasks/transform_tasks.md tasks/features_tasks.md tasks/pipeline_tasks.md")
-   ```
-
-2. After `stage_and_check_git` returns, return a concise completion summary: list the
-   files written, status of `stage_and_check_git` tool call, and confirm completion.
+1. Return a concise completion summary: list the files written and confirm completion.
    Do not describe file contents in your response.
 
 </constraints>

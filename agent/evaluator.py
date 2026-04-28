@@ -47,8 +47,15 @@ def type_check(repo_root: str, project: str) -> CheckResult:
     cache_dir = Path.cwd() / ".mypy_cache"
     if cache_dir.exists():
         shutil.rmtree(cache_dir)
-    stdout_report, stderr_report, exit_status = mypy.api.run([repo_root])
-    return CheckResult(errors=normalize_paths(stdout_report, project=project), status=exit_status)
+    # OLD: in-process mypy — triggers virtual-FS path error when run via __pregel_push (LangGraph deferred execution)
+    # stdout_report, stderr_report, exit_status = mypy.api.run([repo_root])
+    # return CheckResult(errors=normalize_paths(stdout_report, project=project), status=exit_status)
+    result = subprocess.run(
+        [sys.executable, "-m", "mypy", repo_root],
+        capture_output=True,
+        text=True,
+    )
+    return CheckResult(errors=normalize_paths(result.stdout + result.stderr, project=project), status=result.returncode)
 
 def run_tests(repo_root: str, project: str) -> CheckResult:
     result = subprocess.run(

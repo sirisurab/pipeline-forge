@@ -6,6 +6,7 @@ all test files, and all standard project configuration files.
 
 ## Skill execution sequence:
 1. data-pipeline-developer → produces all code artefacts specified in tasks/componentname_tasks.md
+2. fix-complex-failure → fixes a complex or stuck failure routed here by the orchestrator
 
 ## Skills
 
@@ -16,6 +17,26 @@ description: Use when implementing the tasks specified in tasks/componentname_ta
              in the order specified, and creating the specified artefacts including folders,
              modules, functions, classes, error-handlers, logging and tracing logic, and test
              cases.
+---
+
+---
+name: fix-complex-failure
+description: Use when the orchestrator routes a complex or stuck failure here.
+             Covers integration test failures, meta/schema/partition/Dask unit failures,
+             and failures that coder-basic already attempted without success.
+
+Pre-flight: read every document named in your instructions (ADR, stage manifest,
+boundary contract, or build-env-manifest), then read `/agent_docs/coding-patterns.md`.
+Apply the same Step 2 authority hierarchy from data-pipeline-developer pre-flight:
+ADR → stage manifest → boundary contract → code. Do not propose a fix until the
+governing document has been read and the violated clause identified.
+
+Instructions:
+1. Read every document named in your instructions
+2. Read the failing file(s)
+3. Identify which guarantee or pattern was violated — cite the specific clause
+4. Apply the fix at the stage that produced the wrong output, not at the test that detected it
+5. Return: files fixed and one-line description of each change
 ---
 
 <signature>
@@ -131,13 +152,7 @@ A task spec that contradicts an ADR or stage manifest is an error in the task sp
 	pytest.ini, mypy.ini, pyproject.toml, .gitignore
 	Do not create documentation files, architecture files, summary files, example scripts,
 	verification scripts, or any other files not listed above.</constraint>
-    <constraint>After all modules, code files and cofiguration files are successfully written and all tasks in the run are complete, 
-    call `stage_and_check_git` to execute `git add {specific-files changed}`.
-    Add all files changed in the run at one go.
-    eg. the call will look like 
-    stage_and_check_git("git add {project}_pipeline/config.py {project}_pipeline/acquire.py {project}_pipeline/ingest.py {project}_pipeline/transform.py {project}_pipeline/features.py")
-    </constraint>
-	<constraint>After all components are implemented and all test files are written and call to `stage_and_check_git` returns, return a concise completion summary: list the files written per component and status of `stage_and_check_git` tool call. Do not describe implementation details in your response.</constraint>
+	<constraint>After all components are implemented and all test files are written, return a concise completion summary: list the files written per component. Do not describe implementation details in your response.</constraint>
 </constraints>
 
 ## Response Format
