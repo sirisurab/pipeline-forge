@@ -6,6 +6,61 @@
 
 ---
 
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- [Conda](https://docs.conda.io/en/latest/) for environment management
+- [Anthropic API key](https://console.anthropic.com/) — Claude Sonnet and Haiku are used
+- [LangSmith API key](https://smith.langchain.com/) — for agent tracing (free tier works)
+
+### Setup
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/sirisurab/pipeline-forge.git
+cd pipeline-forge
+
+# 2. Create and activate the Conda environment
+conda env create -f environment.yml
+conda activate dapi
+```
+
+Create a `.env` file in the repo root:
+
+```
+ANTHROPIC_API_KEY=your-anthropic-api-key
+LANGSMITH_API_KEY=your-langsmith-api-key
+LANGSMITH_PROJECT=pipeline-forge
+PROJECT=kgs          # which project the agent builds — determines the working subdirectory
+```
+
+### Running the agent
+
+Start the LangGraph server from the repo root:
+
+```bash
+langgraph dev
+```
+
+Open the LangGraph Studio URL printed on startup. Submit a run with your pipeline spec as the input message. Example prompt:
+
+> Write a data pipeline to acquire, ingest, clean and process the KGS oil production data for 2024–2025. The pipeline must use parallel processing techniques. The processed files need to be ready for feature extraction and input to a Machine Learning and Analytics workflow.
+
+The agent will write task specs, implement all pipeline modules and tests, run the eval loop (ruff + mypy + pytest) until all checks pass, then pause for human review before committing.
+
+### Onboarding a new pipeline
+
+Two files are required per project, placed in the repo root:
+
+- `{project}-spec.md` — plain-English description of the data source, schema, and pipeline requirements
+- `{project}-test-requirements.md` — domain-specific correctness criteria the generated tests must cover
+
+Set `PROJECT={project}` in `.env`. No changes to the agent itself are needed.
+
+---
+
 ## What Was Built
 
 A four-stage data pipeline covering acquisition, ingestion, transformation, and feature engineering for oil and gas well production data — built entirely by an agentic system from a plain-English spec. Output is Parquet partitioned by well ID, validated against domain-specific correctness criteria, and ready for ML workflows. Features include per-well decline curves, cumulative production tracking, rolling statistics, and GOR computations across 1–5M row datasets.
